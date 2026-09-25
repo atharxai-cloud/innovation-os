@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { enrichProjectBrain } from "@/lib/ai/project-brain-agent";
 import { createClient } from "@/lib/supabase/server";
 import { slugifyProjectTitle } from "@/lib/projects/slug";
 
@@ -33,6 +34,8 @@ export async function createProject(formData: FormData) {
   if (error || !data) {
     redirect("/innovations/new?error=create-failed");
   }
+
+  await enrichProjectBrain(data);
 
   redirect(`/projects/${data}`);
 }

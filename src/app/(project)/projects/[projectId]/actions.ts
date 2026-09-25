@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { enrichProjectBrain } from "@/lib/ai/project-brain-agent";
 import { createClient } from "@/lib/supabase/server";
 
 export async function archiveProject(formData: FormData) {
@@ -43,6 +44,8 @@ export async function advanceProjectStage(formData: FormData) {
   if (error) {
     redirect(`/projects/${projectId}?error=transition-failed`);
   }
+
+  await enrichProjectBrain(projectId);
 
   redirect(`/projects/${projectId}`);
 }
