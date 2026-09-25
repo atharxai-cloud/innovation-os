@@ -20,3 +20,6 @@ This foundation contains route/app-shell skeletons and domain boundaries only. I
 
 ## CI bootstrap
 The default branch now contains the pull-request quality gate. Epic 0 must pass that gate before merge.
+
+## Lockfile gate
+The package lock is generated and committed by the temporary same-repository CI writer using Node 22.20.0 + npm 11.19.1, then the quality gate switches to npm ci.
