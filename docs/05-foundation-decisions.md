@@ -16,3 +16,6 @@ Direct dependencies are pinned. A package lock must be generated and committed b
 
 ## Scope
 This foundation contains route/app-shell skeletons and domain boundaries only. It intentionally does not create fake persistent data, Supabase tables, AI integrations, or external research calls.
+
+## CI bootstrap
+The default branch now contains the pull-request quality gate. Epic 0 must pass that gate before merge.
