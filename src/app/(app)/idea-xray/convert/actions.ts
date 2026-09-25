@@ -1,6 +1,6 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { redirect } from "next/navigation";\nimport { enrichProjectBrain } from "@/lib/ai/project-brain-agent";
 import { createClient } from "@/lib/supabase/server";
 import { slugifyProjectTitle } from "@/lib/projects/slug";
 import {
@@ -46,5 +46,5 @@ export async function convertIdeaXRayToProject(formData: FormData) {
     });
   }
 
-  redirect(`/projects/${data}`);
+  await enrichProjectBrain(data);\n\n  redirect(`/projects/${data}`);
 }
