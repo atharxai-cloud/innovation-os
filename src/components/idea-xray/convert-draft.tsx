@@ -13,8 +13,9 @@ export function ConvertIdeaXRayDraft() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved) as {
           analysis?: IdeaXRayResult;
@@ -23,9 +24,12 @@ export function ConvertIdeaXRayDraft() {
         setAnalysis(parsed.analysis ?? null);
         setRawIdea(parsed.rawIdea ?? "");
       }
-    } finally {
-      setLoaded(true);
-    }
+      } finally {
+        setLoaded(true);
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   if (!loaded) {
