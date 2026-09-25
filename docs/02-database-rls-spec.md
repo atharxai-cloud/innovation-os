@@ -108,7 +108,11 @@ project_id, title, description, gap_type, status default UNVALIDATED, confidence
 gap_id, source_id, relationship.
 Unique gap/source/relationship.
 
-Consider future `gap_prior_art` join table if direct traceability to prior_art_item is required; add only when implementation needs it.
+### gap_prior_art
+gap_id, prior_art_item_id, relationship, notes.
+Unique gap/prior_art_item/relationship.
+
+Direct traceability from a Gap Hypothesis to both Evidence and Prior Art is an MVP requirement, not a deferred enhancement.
 
 ## 9. Experiments
 ### experiments
