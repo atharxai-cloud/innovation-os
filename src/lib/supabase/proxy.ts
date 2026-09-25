@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const protectedPrefixes = ["/innovations", "/projects", "/settings"];
+const protectedPrefixes = ["/innovations", "/projects", "/settings", "/idea-xray/convert"];
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });

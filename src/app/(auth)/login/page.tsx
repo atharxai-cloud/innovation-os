@@ -64,7 +64,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
         <p className="mt-6 text-sm text-[var(--muted-foreground)]">
           ليس لديك حساب؟{" "}
-          <Link className="font-semibold text-[var(--accent)]" href="/signup">
+          <Link
+            className="font-semibold text-[var(--accent)]"
+            href={`/signup?next=${encodeURIComponent(next ?? "/innovations")}`}
+          >
             إنشاء حساب
           </Link>
         </p>

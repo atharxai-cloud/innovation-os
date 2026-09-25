@@ -37,6 +37,7 @@ export async function signup(formData: FormData) {
   const fullName = String(formData.get("fullName") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  const next = safeNext(formData.get("next"));
 
   if (!fullName || !email || password.length < 8) {
     redirect("/signup?error=invalid-fields");
@@ -48,7 +49,7 @@ export async function signup(formData: FormData) {
     password,
     options: {
       data: { full_name: fullName },
-      emailRedirectTo: `${siteUrl()}/auth/callback?next=/innovations`,
+      emailRedirectTo: `${siteUrl()}/auth/callback?next=${encodeURIComponent(next)}`,
     },
   });
 
@@ -57,10 +58,10 @@ export async function signup(formData: FormData) {
   }
 
   if (data.session) {
-    redirect("/innovations");
+    redirect(next);
   }
 
-  redirect("/login?message=check-email");
+  redirect(`/login?message=check-email&next=${encodeURIComponent(next)}`);
 }
 
 export async function logout() {

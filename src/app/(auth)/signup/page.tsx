@@ -2,11 +2,11 @@ import Link from "next/link";
 import { signup } from "../actions";
 
 type SignupPageProps = {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; next?: string }>;
 };
 
 export default async function SignupPage({ searchParams }: SignupPageProps) {
-  const { error } = await searchParams;
+  const { error, next } = await searchParams;
 
   return (
     <main className="shell py-12">
@@ -24,6 +24,7 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
         ) : null}
 
         <form action={signup} className="mt-7 grid gap-4">
+          <input type="hidden" name="next" value={next ?? "/innovations"} />
           <label className="grid gap-2 text-sm font-semibold">
             الاسم
             <input
@@ -62,7 +63,12 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
         </form>
 
         <p className="mt-6 text-sm text-[var(--muted-foreground)]">
-          لديك حساب؟ <Link className="font-semibold text-[var(--accent)]" href="/login">تسجيل الدخول</Link>
+          لديك حساب؟ <Link
+            className="font-semibold text-[var(--accent)]"
+            href={`/login?next=${encodeURIComponent(next ?? "/innovations")}`}
+          >
+            تسجيل الدخول
+          </Link>
         </p>
       </section>
     </main>
