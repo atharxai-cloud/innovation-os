@@ -1,13 +1,19 @@
-import { WorkspacePlaceholder } from "@/components/project/workspace-placeholder";
+import { EvidenceWorkbench } from "@/components/evidence/evidence-workbench";
+import { getEvidenceWorkspace } from "@/lib/research/data";
 
-export default function EvidencePage() {
+type EvidencePageProps = {
+  params: Promise<{ projectId: string }>;
+};
+
+export default async function EvidencePage({ params }: EvidencePageProps) {
+  const { projectId } = await params;
+  const data = await getEvidenceWorkspace(projectId);
+
   return (
-    <WorkspacePlaceholder
-      eyebrow="Evidence"
-      title="مساحة الأدلة"
-      known="لا توجد مصادر محفوظة في هذه المرحلة التأسيسية."
-      unknown="ما الدليل الذي يثبت وجود المشكلة أو الآلية العلمية؟"
-      next="Evidence Engine سيتم تنفيذه في Epic 5."
+    <EvidenceWorkbench
+      projectId={projectId}
+      initialClaims={data.claims}
+      savedSources={data.sources}
     />
   );
 }
