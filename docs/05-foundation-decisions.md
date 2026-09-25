@@ -7,6 +7,7 @@
 - Tailwind CSS 4.3.3
 - Node 22.20.x baseline
 - Vitest 5.0.1
+- ESLint 9.39.5 (maintenance line selected for current Next.js plugin compatibility)
 
 ## Security note
 Next.js announced a scheduled security release for 2026-09-30. Before any production release, the project must upgrade from 16.3.6 to the patched Active LTS available at that time and re-run all CI/security checks.
