@@ -19,17 +19,21 @@ export function IdeaXRayWorkbench() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
       if (!saved) return;
       const draft = JSON.parse(saved) as StoredDraft;
       if (draft.analysis && draft.rawIdea) {
         setIdea(draft.rawIdea);
         setAnalysis(draft.analysis);
       }
-    } catch {
-      localStorage.removeItem(STORAGE_KEY);
-    }
+      } catch {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   async function analyze() {
