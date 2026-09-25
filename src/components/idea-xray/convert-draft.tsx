@@ -9,14 +9,19 @@ const STORAGE_KEY = "innovation-os:idea-xray:v1";
 
 export function ConvertIdeaXRayDraft() {
   const [analysis, setAnalysis] = useState<IdeaXRayResult | null>(null);
+  const [rawIdea, setRawIdea] = useState("");
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        const parsed = JSON.parse(saved) as { analysis?: IdeaXRayResult };
+        const parsed = JSON.parse(saved) as {
+          analysis?: IdeaXRayResult;
+          rawIdea?: string;
+        };
         setAnalysis(parsed.analysis ?? null);
+        setRawIdea(parsed.rawIdea ?? "");
       }
     } finally {
       setLoaded(true);
@@ -61,6 +66,7 @@ export function ConvertIdeaXRayDraft() {
           name="analysis"
           value={JSON.stringify(analysis)}
         />
+        <input type="hidden" name="rawIdea" value={rawIdea} />
         <button className="rounded-full bg-[var(--accent)] px-5 py-3 font-semibold text-white">
           إنشاء Innovation Project
         </button>
