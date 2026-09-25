@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { deriveNextBestAction } from "@/lib/projects/navigator";
 import type { InnovationStage } from "@/domain/innovation-stage";
+import { parseProjectBrainSnapshot } from "@/lib/projects/brain";
 
 export async function listMyProjects() {
   const supabase = await createClient();
@@ -28,6 +29,7 @@ export async function getProjectWorkspace(projectId: string) {
     assumptionsResult,
     questionsResult,
     eventsResult,
+    snapshotResult,
   ] = await Promise.all([
     supabase
       .from("projects")
@@ -57,6 +59,13 @@ export async function getProjectWorkspace(projectId: string) {
       .eq("project_id", projectId)
       .order("created_at", { ascending: false })
       .limit(20),
+    supabase
+      .from("project_snapshots")
+      .select("id,snapshot_version,stage,summary_json,next_best_action_json,created_at")
+      .eq("project_id", projectId)
+      .order("snapshot_version", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   if (projectResult.error || !projectResult.data) {
@@ -65,6 +74,15 @@ export async function getProjectWorkspace(projectId: string) {
 
   const assumptions = assumptionsResult.data ?? [];
   const questions = questionsResult.data ?? [];
+  const snapshot = snapshotResult.data
+    ? parseProjectBrainSnapshot(snapshotResult.data)
+    : null;
+
+  const fallbackNextAction = deriveNextBestAction({
+    stage: projectResult.data.current_stage as InnovationStage,
+    questions,
+    assumptions,
+  });
 
   return {
     project: projectResult.data,
@@ -72,10 +90,7 @@ export async function getProjectWorkspace(projectId: string) {
     assumptions,
     questions,
     events: eventsResult.data ?? [],
-    nextAction: deriveNextBestAction({
-      stage: projectResult.data.current_stage as InnovationStage,
-      questions,
-      assumptions,
-    }),
+    brain: snapshot,
+    nextAction: snapshot?.nextAction ?? fallbackNextAction,
   };
 }
