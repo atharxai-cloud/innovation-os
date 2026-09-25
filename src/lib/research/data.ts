@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 export async function getEvidenceWorkspace(projectId: string) {
   const supabase = await createClient();
 
-  const [claims, projectSources, relations] = await Promise.all([
+  const [claims, projectSources] = await Promise.all([
     supabase
       .from("claims")
       .select("id,statement,claim_type,status,confidence,created_at")
@@ -14,9 +14,6 @@ export async function getEvidenceWorkspace(projectId: string) {
       .select("source_id,relevance,notes,created_at")
       .eq("project_id", projectId)
       .order("created_at", { ascending: false }),
-    supabase
-      .from("claim_sources")
-      .select("claim_id,source_id,relationship,notes"),
   ]);
 
   const sourceIds = (projectSources.data ?? []).map((item) => item.source_id);
@@ -31,6 +28,5 @@ export async function getEvidenceWorkspace(projectId: string) {
     claims: claims.data ?? [],
     projectSources: projectSources.data ?? [],
     sources: sources.data ?? [],
-    relations: relations.data ?? [],
   };
 }
