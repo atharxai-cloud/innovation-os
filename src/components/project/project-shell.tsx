@@ -23,9 +23,11 @@ export async function ProjectShell({
   const base = "/projects/" + projectId;
   const state = await getProjectWorkspace(projectId);
   const biggestUnknown =
+    state.brain?.biggestUnknown ??
     state.questions.find(
       (item) => item.status === "OPEN" || item.status === "IN_PROGRESS",
-    )?.question ?? "لا توجد أسئلة حرجة مفتوحة حاليًا.";
+    )?.question ??
+    "لا توجد أسئلة حرجة مفتوحة حاليًا.";
 
   return (
     <div className="shell grid min-h-screen gap-5 py-5 xl:grid-cols-[210px_minmax(0,1fr)_300px]">
@@ -82,6 +84,11 @@ export async function ProjectShell({
             <p className="mt-3 text-xs text-[var(--muted-foreground)]">
               Confidence:{" "}
               {Math.round(state.nextAction.confidence * 100)}%
+            </p>
+          ) : null}
+          {state.brain ? (
+            <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+              Snapshot v{state.brain.snapshotVersion} · {state.brain.generatedBy}
             </p>
           ) : null}
         </div>
