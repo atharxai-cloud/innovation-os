@@ -1,4 +1,5 @@
 import { getProjectWorkspace } from "@/lib/projects/data";
+import { archiveProject } from "./actions";
 
 type ProjectOverviewPageProps = {
   params: Promise<{ projectId: string }>;
@@ -104,6 +105,21 @@ export default async function ProjectOverviewPage({
             ))}
           </div>
         </div>
+      </section>
+
+      <section className="surface flex flex-wrap items-center justify-between gap-4 p-6">
+        <div>
+          <p className="font-semibold">إدارة المشروع</p>
+          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+            الحذف الدائم غير مستخدم في MVP. الأرشفة تحفظ السجل والقرارات.
+          </p>
+        </div>
+        <form action={archiveProject}>
+          <input type="hidden" name="projectId" value={projectId} />
+          <button className="rounded-full border border-[var(--border)] bg-white px-4 py-2.5 text-sm font-semibold">
+            أرشفة المشروع
+          </button>
+        </form>
       </section>
     </div>
   );
