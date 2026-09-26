@@ -13,7 +13,7 @@ type ContextPack = {
   reviews?: unknown[];
 };
 
-function detectIntent(question: string): ContextPack["intent"] {
+export function detectIntent(question: string): ContextPack["intent"] {
   const q = question.toLowerCase();
 
   if (/تجرب|experiment|hypothesis|control|قياس|measurement/.test(q)) return "EXPERIMENT";
