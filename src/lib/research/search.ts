@@ -1,9 +1,10 @@
 import { expandEvidenceQuery } from "@/lib/research/query-expansion";
 import { searchOpenAlex } from "@/lib/research/openalex";
 import type { EvidenceSearchType } from "@/lib/research/types";
+import type { AiObservationContext } from "@/lib/ai/observed-openai";
 
-export async function searchEvidence(query: string, type: EvidenceSearchType) {
-  const queries = await expandEvidenceQuery(query, type);
+export async function searchEvidence(query: string, type: EvidenceSearchType, observation?: AiObservationContext) {
+  const queries = await expandEvidenceQuery(query, type, observation);
   const settled = await Promise.allSettled(queries.map((item) => searchOpenAlex(item)));
 
   const byKey = new Map<string, Awaited<ReturnType<typeof searchOpenAlex>>[number]>();
