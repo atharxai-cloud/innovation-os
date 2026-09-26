@@ -30,7 +30,7 @@ export async function buildProjectContextPack(projectId: string, question: strin
   const [project, snapshot, problem] = await Promise.all([
     supabase
       .from("projects")
-      .select("id,title,description,current_stage,status,updated_at")
+      .select("id,workspace_id,title,description,current_stage,status,updated_at")
       .eq("id", projectId)
       .maybeSingle(),
     supabase
