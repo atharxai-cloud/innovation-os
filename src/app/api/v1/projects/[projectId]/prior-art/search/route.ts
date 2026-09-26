@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { searchPriorArt } from "@/lib/prior-art/search";
+import { consumeRateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
 
 export async function POST(
   request: Request,
@@ -18,6 +19,15 @@ export async function POST(
   if (!project) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
+
+  const rate = await consumeRateLimit({
+    request,
+    scope: "prior-art-search",
+    limit: 10,
+    windowSeconds: 600,
+  });
+  const limited = rateLimitResponse(rate);
+  if (limited) return limited;
 
   const body = await request.json().catch(() => null) as { query?: unknown } | null;
   const query = typeof body?.query === "string" ? body.query.trim() : "";
