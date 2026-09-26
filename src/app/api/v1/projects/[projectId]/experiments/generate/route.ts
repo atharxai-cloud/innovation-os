@@ -16,6 +16,8 @@ export async function POST(
   }
 
   const supabase = await createClient();
+  const { data: authData } = await supabase.auth.getClaims();
+  const actorId = typeof authData?.claims?.sub === "string" ? authData.claims.sub : null;
   const [project, problem, gap, claims] = await Promise.all([
     supabase.from("projects").select("id,workspace_id,title,current_stage").eq("id", projectId).maybeSingle(),
     supabase.from("project_problems").select("problem_statement,context,affected_users,current_solution_direction").eq("project_id", projectId).maybeSingle(),
@@ -28,39 +30,31 @@ export async function POST(
   }
 
   try {
-    const draft = await designExperiment({
-      project: project.data,
-      problem: problem.data,
-      gap: gap.data,
-      claims: claims.data ?? [],
-    });
+    const { draft, runId } = await designExperiment(
+      {
+        project: project.data,
+        problem: problem.data,
+        gap: gap.data,
+        claims: claims.data ?? [],
+      },
+      {
+        workspaceId: project.data.workspace_id,
+        projectId,
+        actorId,
+        agentType: "EXPERIMENT_DESIGNER",
+        inputHash: `gap:${gapId}`,
+        metadata: { gap_id: gapId },
+      },
+    );
 
     const admin = createAdminClient();
-    if (admin) {
-      const model = process.env.OPENAI_EXPERIMENT_DESIGNER_MODEL ?? "gpt-5.6-terra";
-      const { data: run } = await admin
-        .from("ai_runs")
-        .insert({
-          workspace_id: project.data.workspace_id,
-          project_id: projectId,
-          agent_type: "EXPERIMENT_DESIGNER",
-          status: "SUCCEEDED",
-          input_hash: `gap:${gapId}`,
-          model_provider: "openai",
-          model_name: model,
-          completed_at: new Date().toISOString(),
-        })
-        .select("id")
-        .maybeSingle();
-
-      if (run?.id) {
-        await admin.from("ai_artifacts").insert({
-          ai_run_id: run.id,
-          artifact_type: "EXPERIMENT_DRAFT",
-          content_json: draft,
-          version: 1,
-        });
-      }
+    if (admin && runId) {
+      await admin.from("ai_artifacts").insert({
+        ai_run_id: runId,
+        artifact_type: "EXPERIMENT_DRAFT",
+        content_json: draft,
+        version: 1,
+      });
     }
 
     return NextResponse.json({ experiment: draft });

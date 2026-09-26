@@ -13,6 +13,22 @@ import { recordIdeaXRayConversion } from "@/lib/ai/record-run";
 export async function convertIdeaXRayToProject(formData: FormData) {
   const raw = String(formData.get("analysis") ?? "");
   const rawIdea = String(formData.get("rawIdea") ?? "").trim();
+  const telemetryRaw = String(formData.get("telemetry") ?? "");
+  let preAuthRunId: string | null = null;
+
+  if (telemetryRaw) {
+    try {
+      const telemetry = JSON.parse(telemetryRaw) as { runId?: unknown };
+      if (
+        typeof telemetry.runId === "string" &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(telemetry.runId)
+      ) {
+        preAuthRunId = telemetry.runId;
+      }
+    } catch {
+      preAuthRunId = null;
+    }
+  }
 
   let analysis: unknown;
   try {
@@ -27,6 +43,9 @@ export async function convertIdeaXRayToProject(formData: FormData) {
 
   const typed = analysis as IdeaXRayResult;
   const supabase = await createClient();
+  const { data: authData } = await supabase.auth.getClaims();
+  const actorId =
+    typeof authData?.claims?.sub === "string" ? authData.claims.sub : null;
   const baseSlug = slugifyProjectTitle(typed.project_title);
   const slug = `${baseSlug}-${Date.now().toString(36)}`;
 
@@ -44,6 +63,8 @@ export async function convertIdeaXRayToProject(formData: FormData) {
       projectId: data,
       rawIdea,
       analysis: typed,
+      actorId,
+      preAuthRunId,
     });
   }
 

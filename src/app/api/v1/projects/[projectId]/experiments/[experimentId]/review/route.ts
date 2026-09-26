@@ -9,6 +9,8 @@ export async function POST(
 ) {
   const { projectId, experimentId } = await context.params;
   const supabase = await createClient();
+  const { data: authData } = await supabase.auth.getClaims();
+  const actorId = typeof authData?.claims?.sub === "string" ? authData.claims.sub : null;
 
   const [project, problem, experiment, gap, claims] = await Promise.all([
     supabase.from("projects").select("id,workspace_id,title,current_stage").eq("id", projectId).maybeSingle(),
@@ -34,13 +36,23 @@ export async function POST(
   }
 
   try {
-    const review = await critiqueExperiment({
-      project: project.data,
-      problem: problem.data,
-      gap: relatedGap,
-      experiment: experiment.data,
-      claims: claims.data ?? [],
-    });
+    const { review, runId } = await critiqueExperiment(
+      {
+        project: project.data,
+        problem: problem.data,
+        gap: relatedGap,
+        experiment: experiment.data,
+        claims: claims.data ?? [],
+      },
+      {
+        workspaceId: project.data.workspace_id,
+        projectId,
+        actorId,
+        agentType: "SCIENTIFIC_CRITIC",
+        inputHash: `experiment:${experimentId}`,
+        metadata: { experiment_id: experimentId },
+      },
+    );
 
     const admin = createAdminClient();
     if (!admin) {
@@ -61,6 +73,7 @@ export async function POST(
           provider: "openai",
           model,
           critic_version: "SCIENTIFIC_CRITIC_V1",
+          ai_run_id: runId,
         },
       })
       .select("id")
@@ -70,24 +83,9 @@ export async function POST(
       return NextResponse.json({ error: "review_save_failed" }, { status: 500 });
     }
 
-    const { data: run } = await admin
-      .from("ai_runs")
-      .insert({
-        workspace_id: project.data.workspace_id,
-        project_id: projectId,
-        agent_type: "SCIENTIFIC_CRITIC",
-        status: "SUCCEEDED",
-        input_hash: `experiment:${experimentId}`,
-        model_provider: "openai",
-        model_name: model,
-        completed_at: new Date().toISOString(),
-      })
-      .select("id")
-      .maybeSingle();
-
-    if (run?.id) {
+    if (runId) {
       await admin.from("ai_artifacts").insert({
-        ai_run_id: run.id,
+        ai_run_id: runId,
         artifact_type: "EXPERIMENT_REVIEW",
         content_json: review,
         version: 1,

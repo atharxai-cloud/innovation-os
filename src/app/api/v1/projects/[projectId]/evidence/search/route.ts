@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { searchEvidence } from "@/lib/research/search";
@@ -16,10 +17,12 @@ export async function POST(
 ) {
   const { projectId } = await context.params;
   const supabase = await createClient();
+  const { data: authData } = await supabase.auth.getClaims();
+  const actorId = typeof authData?.claims?.sub === "string" ? authData.claims.sub : null;
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id")
+    .select("id,workspace_id")
     .eq("id", projectId)
     .maybeSingle();
 
@@ -42,7 +45,14 @@ export async function POST(
   }
 
   try {
-    const result = await searchEvidence(query, type);
+    const result = await searchEvidence(query, type, {
+      workspaceId: project.workspace_id,
+      projectId,
+      actorId,
+      agentType: "EVIDENCE_QUERY_EXPANSION",
+      inputHash: createHash("sha256").update(`${type}:${query}`).digest("hex"),
+      metadata: { evidence_search_type: type },
+    });
     return NextResponse.json(result);
   } catch {
     return NextResponse.json(

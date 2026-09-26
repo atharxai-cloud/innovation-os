@@ -1,4 +1,5 @@
 import type { ExperimentDraft } from "@/lib/experiments/types";
+import { observedOpenAIResponse, type AiObservationContext } from "@/lib/ai/observed-openai";
 
 const schema = {
   type: "object",
@@ -40,19 +41,12 @@ function outputText(payload: unknown) {
   return null;
 }
 
-export async function designExperiment(context: Record<string, unknown>): Promise<ExperimentDraft> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY missing");
-
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    cache: "no-store",
-    body: JSON.stringify({
-      model: process.env.OPENAI_EXPERIMENT_DESIGNER_MODEL ?? "gpt-5.6-terra",
+export async function designExperiment(context: Record<string, unknown>, observation: AiObservationContext): Promise<{ draft: ExperimentDraft; runId: string | null }> {
+  const model = process.env.OPENAI_EXPERIMENT_DESIGNER_MODEL ?? "gpt-5.6-terra";
+  const { payload, runId } = await observedOpenAIResponse({
+    context: observation,
+    model,
+    body: {
       reasoning: { effort: "medium" },
       instructions: [
         "You are the Experiment Designer inside Innovation OS.",
@@ -73,11 +67,9 @@ export async function designExperiment(context: Record<string, unknown>): Promis
           schema,
         },
       },
-    }),
+    },
   });
-
-  if (!response.ok) throw new Error(`Experiment design failed: ${response.status}`);
-  const text = outputText(await response.json());
+  const text = outputText(payload);
   if (!text) throw new Error("Experiment output missing");
-  return JSON.parse(text) as ExperimentDraft;
+  return { draft: JSON.parse(text) as ExperimentDraft, runId };
 }

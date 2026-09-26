@@ -1,4 +1,5 @@
 import type { PriorArtComparison, PriorArtSearchResult } from "@/lib/prior-art/types";
+import { observedOpenAIResponse, type AiObservationContext } from "@/lib/ai/observed-openai";
 
 const schema = {
   type: "object",
@@ -41,23 +42,19 @@ function outputText(payload: unknown) {
   return null;
 }
 
-export async function comparePriorArt(input: {
-  project: Record<string, unknown>;
-  problem: Record<string, unknown> | null;
-  candidate: PriorArtSearchResult;
-}): Promise<PriorArtComparison> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY missing");
-
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    cache: "no-store",
-    body: JSON.stringify({
-      model: process.env.OPENAI_PRIOR_ART_MODEL ?? "gpt-5.6-luna",
+export async function comparePriorArt(
+  input: {
+    project: Record<string, unknown>;
+    problem: Record<string, unknown> | null;
+    candidate: PriorArtSearchResult;
+  },
+  observation: AiObservationContext,
+): Promise<PriorArtComparison> {
+  const model = process.env.OPENAI_PRIOR_ART_MODEL ?? "gpt-5.6-luna";
+  const { payload } = await observedOpenAIResponse({
+    context: observation,
+    model,
+    body: {
       instructions: [
         "You are the Prior-Art Comparison agent in Innovation OS.",
         "Compare concepts only from the supplied project and candidate metadata.",
@@ -76,11 +73,10 @@ export async function comparePriorArt(input: {
           schema,
         },
       },
-    }),
+    },
   });
 
-  if (!response.ok) throw new Error(`Comparison failed: ${response.status}`);
-  const text = outputText(await response.json());
+  const text = outputText(payload);
   if (!text) throw new Error("Comparison output missing");
   return JSON.parse(text) as PriorArtComparison;
 }

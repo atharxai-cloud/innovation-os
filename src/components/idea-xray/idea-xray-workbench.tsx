@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { IdeaXRayResult } from "@/lib/ai/idea-xray-schema";
+import type { IdeaXRayTelemetry } from "@/lib/ai/telemetry-types";
 
 const STORAGE_KEY = "innovation-os:idea-xray:v1";
 
 type StoredDraft = {
   rawIdea: string;
   analysis: IdeaXRayResult;
+  telemetry?: IdeaXRayTelemetry;
   createdAt: string;
 };
 
@@ -56,6 +58,7 @@ export function IdeaXRayWorkbench() {
 
       const payload = (await response.json()) as {
         analysis?: IdeaXRayResult;
+        meta?: IdeaXRayTelemetry;
         error?: string;
         message?: string;
       };
@@ -70,6 +73,7 @@ export function IdeaXRayWorkbench() {
         JSON.stringify({
           rawIdea: value,
           analysis: payload.analysis,
+          telemetry: payload.meta,
           createdAt: new Date().toISOString(),
         } satisfies StoredDraft),
       );

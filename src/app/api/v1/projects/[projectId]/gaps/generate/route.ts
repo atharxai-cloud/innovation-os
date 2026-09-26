@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateGapCandidates } from "@/lib/gaps/generate";
@@ -8,9 +9,11 @@ export async function POST(
 ) {
   const { projectId } = await context.params;
   const supabase = await createClient();
+  const { data: authData } = await supabase.auth.getClaims();
+  const actorId = typeof authData?.claims?.sub === "string" ? authData.claims.sub : null;
 
   const [project, problem, assumptions, claims, projectSources, priorArt] = await Promise.all([
-    supabase.from("projects").select("id,title,description,current_stage").eq("id", projectId).maybeSingle(),
+    supabase.from("projects").select("id,workspace_id,title,description,current_stage").eq("id", projectId).maybeSingle(),
     supabase.from("project_problems").select("problem_statement,context,affected_users,current_solution_direction").eq("project_id", projectId).maybeSingle(),
     supabase.from("project_assumptions").select("category,statement,status").eq("project_id", projectId).limit(20),
     supabase.from("claims").select("id,statement,claim_type,status").eq("project_id", projectId).limit(20),
@@ -47,13 +50,25 @@ export async function POST(
   const allowedPrior = new Set(priorItems.map((item) => item.id));
 
   try {
-    const candidates = await generateGapCandidates({
+    const generationContext = {
       project: project.data,
       problem: problem.data,
       assumptions: assumptions.data ?? [],
       claims: claims.data ?? [],
       evidence_sources: sources.data ?? [],
       prior_art: priorItems,
+    };
+
+    const candidates = await generateGapCandidates(generationContext, {
+      workspaceId: project.data.workspace_id,
+      projectId,
+      actorId,
+      agentType: "GAP_FINDER",
+      inputHash: createHash("sha256").update(JSON.stringify(generationContext)).digest("hex"),
+      metadata: {
+        evidence_source_count: sourceIds.length,
+        prior_art_count: priorItems.length,
+      },
     });
 
     const safe = candidates

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { comparePriorArt } from "@/lib/prior-art/compare";
@@ -16,10 +17,12 @@ export async function POST(
   }
 
   const supabase = await createClient();
+  const { data: authData } = await supabase.auth.getClaims();
+  const actorId = typeof authData?.claims?.sub === "string" ? authData.claims.sub : null;
   const [projectResult, problemResult] = await Promise.all([
     supabase
       .from("projects")
-      .select("id,title,description,current_stage")
+      .select("id,workspace_id,title,description,current_stage")
       .eq("id", projectId)
       .maybeSingle(),
     supabase
@@ -34,10 +37,22 @@ export async function POST(
   }
 
   try {
-    const comparison = await comparePriorArt({
+    const comparisonInput = {
       project: projectResult.data,
       problem: problemResult.data,
       candidate,
+    };
+
+    const comparison = await comparePriorArt(comparisonInput, {
+      workspaceId: projectResult.data.workspace_id,
+      projectId,
+      actorId,
+      agentType: "PRIOR_ART_COMPARISON",
+      inputHash: createHash("sha256").update(JSON.stringify(comparisonInput)).digest("hex"),
+      metadata: {
+        provider: candidate.provider,
+        prior_art_type: candidate.priorArtType,
+      },
     });
 
     const { data, error } = await supabase.rpc("save_prior_art_item", {

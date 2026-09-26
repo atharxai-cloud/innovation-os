@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { IdeaXRayResult } from "@/lib/ai/idea-xray-schema";
+import type { IdeaXRayTelemetry } from "@/lib/ai/telemetry-types";
 import { convertIdeaXRayToProject } from "@/app/(app)/idea-xray/convert/actions";
 
 const STORAGE_KEY = "innovation-os:idea-xray:v1";
@@ -10,6 +11,7 @@ const STORAGE_KEY = "innovation-os:idea-xray:v1";
 export function ConvertIdeaXRayDraft() {
   const [analysis, setAnalysis] = useState<IdeaXRayResult | null>(null);
   const [rawIdea, setRawIdea] = useState("");
+  const [telemetry, setTelemetry] = useState<IdeaXRayTelemetry | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -20,9 +22,11 @@ export function ConvertIdeaXRayDraft() {
         const parsed = JSON.parse(saved) as {
           analysis?: IdeaXRayResult;
           rawIdea?: string;
+          telemetry?: IdeaXRayTelemetry;
         };
         setAnalysis(parsed.analysis ?? null);
         setRawIdea(parsed.rawIdea ?? "");
+        setTelemetry(parsed.telemetry ?? null);
       }
       } finally {
         setLoaded(true);
@@ -71,6 +75,7 @@ export function ConvertIdeaXRayDraft() {
           value={JSON.stringify(analysis)}
         />
         <input type="hidden" name="rawIdea" value={rawIdea} />
+        <input type="hidden" name="telemetry" value={telemetry ? JSON.stringify(telemetry) : ""} />
         <button className="rounded-full bg-[var(--accent)] px-5 py-3 font-semibold text-white">
           إنشاء Innovation Project
         </button>

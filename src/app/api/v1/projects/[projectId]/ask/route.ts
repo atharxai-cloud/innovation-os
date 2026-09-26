@@ -26,9 +26,22 @@ export async function POST(
 
   try {
     const contextPack = await buildProjectContextPack(projectId, question);
-    const answer = await askProjectAgent({
+    const project = contextPack.project as Record<string, unknown>;
+    const workspaceId = typeof project.workspace_id === "string"
+      ? project.workspace_id
+      : null;
+
+    const { answer, runId } = await askProjectAgent({
       question,
       contextPack: contextPack as unknown as Record<string, unknown>,
+      observation: {
+        workspaceId,
+        projectId,
+        actorId: claims.claims.sub,
+        agentType: "ASK_PROJECT",
+        inputHash: createHash("sha256").update(question).digest("hex"),
+        metadata: { intent: contextPack.intent },
+      },
     });
 
     const sourceRows = Array.isArray(contextPack.sources)
@@ -62,41 +75,18 @@ export async function POST(
       facts,
     };
 
-    const project = contextPack.project as Record<string, unknown>;
-    const workspaceId = typeof project.workspace_id === "string"
-      ? project.workspace_id
-      : null;
-
     const admin = createAdminClient();
-    if (admin && workspaceId) {
-      const model = process.env.OPENAI_ASK_PROJECT_MODEL ?? "gpt-5.6-terra";
-      const { data: run } = await admin
-        .from("ai_runs")
-        .insert({
-          workspace_id: workspaceId,
-          project_id: projectId,
-          agent_type: "ASK_PROJECT",
-          status: "SUCCEEDED",
-          input_hash: createHash("sha256").update(question).digest("hex"),
-          model_provider: "openai",
-          model_name: model,
-          completed_at: new Date().toISOString(),
-        })
-        .select("id")
-        .maybeSingle();
-
-      if (run?.id) {
-        await admin.from("ai_artifacts").insert({
-          ai_run_id: run.id,
-          artifact_type: "ASK_PROJECT_ANSWER",
-          content_json: {
-            question,
-            intent: contextPack.intent,
-            answer: safeAnswer,
-          },
-          version: 1,
-        });
-      }
+    if (admin && runId) {
+      await admin.from("ai_artifacts").insert({
+        ai_run_id: runId,
+        artifact_type: "ASK_PROJECT_ANSWER",
+        content_json: {
+          question,
+          intent: contextPack.intent,
+          answer: safeAnswer,
+        },
+        version: 1,
+      });
     }
 
     return NextResponse.json({
