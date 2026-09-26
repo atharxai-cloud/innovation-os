@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { designExperiment } from "@/lib/experiments/designer";
+import { consumeRateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
 
 export async function POST(
   request: Request,
@@ -14,6 +15,15 @@ export async function POST(
   if (!gapId) {
     return NextResponse.json({ error: "gap_required" }, { status: 400 });
   }
+
+  const rate = await consumeRateLimit({
+    request,
+    scope: "experiment-generate",
+    limit: 8,
+    windowSeconds: 600,
+  });
+  const limited = rateLimitResponse(rate);
+  if (limited) return limited;
 
   const supabase = await createClient();
   const [project, problem, gap, claims] = await Promise.all([
