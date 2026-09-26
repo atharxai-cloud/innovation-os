@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getProjectWorkspace } from "@/lib/projects/data";
+import { AskProjectPanel } from "@/components/project/ask-project-panel";
 
 type ProjectShellProps = {
   projectId: string;
@@ -93,9 +94,7 @@ export async function ProjectShell({
           ) : null}
         </div>
 
-        <div className="mt-5 rounded-2xl border border-dashed border-[var(--border)] p-4 text-sm text-[var(--muted-foreground)]">
-          Ask My Project سيستخدم هذا الـProject State لاحقًا بدل Chat History.
-        </div>
+        <AskProjectPanel projectId={projectId} />
       </aside>
     </div>
   );
