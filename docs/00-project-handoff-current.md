@@ -416,32 +416,34 @@ Verified outcomes include:
 
 # 9. Supabase Schema / Migration State
 
-Repository migration files currently include through:
+Migration history reconciliation completed on Staging.
 
-- `015_prior_art_discovery.sql`
-- `016_gap_finder.sql`
-- `017_experiment_designer_critic.sql`
-- `018_experiment_revision_audit.sql`
+Repository migration files are now normalized to Supabase-compatible 14-digit versions and match the Staging migration history.
 
-Important staging drift discovered during verification:
+Current baseline includes migrations 001–018, ending with:
+- `20260926070751_015_prior_art_discovery.sql`
+- `20260926071331_016_gap_finder.sql`
+- `20260926072335_017_experiment_designer_critic.sql`
+- `20260926072336_018_experiment_revision_audit.sql`
 
-- Staging schema contains Prior Art, Gap Finder, Experiments, and Experiment Reviews objects.
-- Supabase migration-history records currently list only through migration 014.
-- This happened because later staging schema work was applied directly for validation before repository migrations were committed.
+The previously missing Staging history entries for 015–018 were marked as applied only after verifying that the corresponding schema objects, functions, triggers, grants, RLS policies, and constraints already existed. Their DDL was not re-run.
 
-Therefore:
+Current Staging checks:
+- migration history contains 001–018
+- `gaps`, `gap_evidence`, `gap_prior_art`, `experiments`, and `experiment_reviews` have RLS enabled
+- anonymous access to these tables is not granted
+- authenticated grants follow the intended least-privilege model
+- Supabase Security Advisor = zero findings
 
-> Do not promote staging schema to production until migration history is reconciled deliberately.
+CI now runs `npm run migration:check` and rejects:
+- migration filenames without a 14-digit timestamp
+- duplicate migration versions
 
-Do not blindly re-run 015–018 against staging because existing tables/triggers/functions may collide. Reconcile with a controlled migration-history repair / fresh-environment replay before production promotion.
+Rule going forward:
 
-Current Staging RLS check:
-- `gaps`: RLS enabled
-- `gap_evidence`: RLS enabled
-- `gap_prior_art`: RLS enabled
-- `experiments`: RLS enabled
-- `experiment_reviews`: RLS enabled
-- anonymous SELECT on all above: false
+> Never modify the remote schema directly. Every schema change must be represented by a timestamped migration file and pass migration integrity + CI before promotion.
+
+A fresh-environment replay remains a release gate before Production promotion.
 
 ---
 
@@ -491,10 +493,11 @@ Before public onboarding:
 4. Configure Crossref mailto.
 5. Register/configure EPO OPS credentials for patent search.
 6. Enable Supabase Leaked Password Protection.
-7. Replace Idea X-Ray in-memory rate limiter with durable distributed rate limiting.
+7. Complete durable distributed rate limiting.
 8. Add production-grade error tracking and structured logs.
 9. Add background-job layer for long scientific / prior-art operations.
-10. Complete staging → production environment separation and release hardening.
+10. Run a clean fresh-environment migration replay before Production promotion.
+11. Complete staging → production environment separation and release hardening.
 
 ---
 
@@ -627,11 +630,11 @@ Ask My Project
 ✓
 
 Release Hardening
-NOT STARTED
+IN PROGRESS
 ```
 
 The immediate action in the next chat is:
 
-> Do not return to legacy Epic branches. Reconcile staging migration-history drift before production promotion, then proceed to Epic 11 — Release Hardening.
+> Migration history is reconciled. Continue Epic 11 — Release Hardening, with fresh-environment replay, observability, background jobs, security regression tests, and final A–G release validation before Production promotion.
 
 Do not restart the project or recreate completed work.
