@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
+import { detectIntent, type AskProjectIntent } from "@/lib/project-brain/intent";
 
 type ContextPack = {
-  intent: "GENERAL" | "EVIDENCE" | "PRIOR_ART" | "GAP" | "EXPERIMENT";
+  intent: AskProjectIntent;
   project: unknown;
   snapshot: unknown;
   problem?: unknown;
@@ -12,16 +13,6 @@ type ContextPack = {
   experiments?: unknown[];
   reviews?: unknown[];
 };
-
-export function detectIntent(question: string): ContextPack["intent"] {
-  const q = question.toLowerCase();
-
-  if (/تجرب|experiment|hypothesis|control|قياس|measurement/.test(q)) return "EXPERIMENT";
-  if (/براء|patent|prior art|سابقة|تشابه|جدة/.test(q)) return "PRIOR_ART";
-  if (/فجوة|gap|limitation|قيد|فرصة/.test(q)) return "GAP";
-  if (/دليل|مصدر|دراسة|claim|evidence|source|بحث/.test(q)) return "EVIDENCE";
-  return "GENERAL";
-}
 
 export async function buildProjectContextPack(projectId: string, question: string) {
   const supabase = await createClient();
