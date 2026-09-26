@@ -4,6 +4,22 @@ import { AI_PRICING_VERSION } from "@/lib/ai/pricing";
 import { logEvent } from "@/lib/observability/logger";
 import type { IdeaXRayResult } from "@/lib/ai/idea-xray-schema";
 
+type TrustedPreAuthRun = {
+  id: string;
+  input_hash: string;
+  model_name: string;
+  request_id: string | null;
+  service_tier: string | null;
+  tokens_in: number | null;
+  cached_input_tokens: number | null;
+  tokens_out: number | null;
+  reasoning_tokens: number | null;
+  estimated_cost: number | null;
+  duration_ms: number | null;
+  pricing_version: string | null;
+  metadata_json: Record<string, unknown> | null;
+};
+
 export async function recordIdeaXRayConversion(input: {
   projectId: string;
   rawIdea: string;
@@ -38,23 +54,7 @@ export async function recordIdeaXRayConversion(input: {
   }
 
   const expectedHash = createHash("sha256").update(input.rawIdea).digest("hex");
-  let trusted:
-    | {
-        id: string;
-        input_hash: string;
-        model_name: string;
-        request_id: string | null;
-        service_tier: string | null;
-        tokens_in: number | null;
-        cached_input_tokens: number | null;
-        tokens_out: number | null;
-        reasoning_tokens: number | null;
-        estimated_cost: number | null;
-        duration_ms: number | null;
-        pricing_version: string | null;
-        metadata_json: Record<string, unknown> | null;
-      }
-    | null = null;
+  let trusted: TrustedPreAuthRun | null = null;
 
   if (input.preAuthRunId) {
     const { data } = await admin
@@ -69,7 +69,7 @@ export async function recordIdeaXRayConversion(input: {
       .maybeSingle();
 
     if (data && data.input_hash === expectedHash) {
-      trusted = data as typeof trusted;
+      trusted = data as TrustedPreAuthRun;
     } else {
       logEvent("warn", "ai.pre_auth.claim_rejected", {
         project_id: input.projectId,
