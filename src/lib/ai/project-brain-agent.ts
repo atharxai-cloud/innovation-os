@@ -91,9 +91,6 @@ export async function enrichProjectBrain(projectId: string) {
   if (project.error || !project.data || snapshot.error || !snapshot.data) return;
 
   const model = process.env.OPENAI_PROJECT_BRAIN_MODEL ?? "gpt-5.6-luna";
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10_000);
-
   try {
     const { payload, runId } = await observedOpenAIResponse({
       context: {
@@ -184,7 +181,5 @@ export async function enrichProjectBrain(projectId: string) {
 
   } catch {
     // Deterministic snapshot remains valid if enrichment fails.
-  } finally {
-    clearTimeout(timer);
   }
 }
