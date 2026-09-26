@@ -14,7 +14,7 @@ export async function POST(
     supabase.from("projects").select("id,workspace_id,title,current_stage").eq("id", projectId).maybeSingle(),
     supabase.from("project_problems").select("problem_statement,context,affected_users,current_solution_direction").eq("project_id", projectId).maybeSingle(),
     supabase.from("experiments").select("*").eq("project_id", projectId).eq("id", experimentId).maybeSingle(),
-    supabase.from("gaps").select("id,title,description,gap_type,status,assumptions_json,validation_questions_json").eq("project_id", projectId).maybeSingle(),
+    Promise.resolve({ data: null as Record<string, unknown> | null }),
     supabase.from("claims").select("statement,claim_type,status").eq("project_id", projectId).limit(20),
   ]);
 
