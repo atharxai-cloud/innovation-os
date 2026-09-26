@@ -420,11 +420,12 @@ Migration history reconciliation completed on Staging.
 
 Repository migration files are now normalized to Supabase-compatible 14-digit versions and match the Staging migration history.
 
-Current baseline includes migrations 001–018, ending with:
+Current baseline includes migrations 001–019.
 - `20260926070751_015_prior_art_discovery.sql`
 - `20260926071331_016_gap_finder.sql`
 - `20260926072335_017_experiment_designer_critic.sql`
 - `20260926072336_018_experiment_revision_audit.sql`
+- `20260926075637_019_enforce_project_stage_machine_trigger.sql`
 
 The previously missing Staging history entries for 015–018 were marked as applied only after verifying that the corresponding schema objects, functions, triggers, grants, RLS policies, and constraints already existed. Their DDL was not re-run.
 
@@ -443,7 +444,7 @@ Rule going forward:
 
 > Never modify the remote schema directly. Every schema change must be represented by a timestamped migration file and pass migration integrity + CI before promotion.
 
-A fresh-environment replay remains a release gate before Production promotion.
+Fresh-environment replay is now automated in CI and has passed through migration 019. The first run exposed a direct `projects.current_stage` bypass; migration 019 fixed it with a PostgreSQL BEFORE UPDATE transition guard. Full details: `docs/17-fresh-migration-security-regression.md`.
 
 ---
 
@@ -496,8 +497,9 @@ Before public onboarding:
 7. Complete durable distributed rate limiting.
 8. Add production-grade error tracking and structured logs.
 9. Add background-job layer for long scientific / prior-art operations.
-10. Run a clean fresh-environment migration replay before Production promotion.
-11. Complete staging → production environment separation and release hardening.
+10. Fresh-environment migration replay: COMPLETED and automated in CI.
+11. Expand observability, background jobs, AI cost accounting, and release scenario automation.
+12. Complete staging → production environment separation and release hardening.
 
 ---
 
@@ -635,6 +637,6 @@ IN PROGRESS
 
 The immediate action in the next chat is:
 
-> Migration history is reconciled. Continue Epic 11 — Release Hardening, with fresh-environment replay, observability, background jobs, security regression tests, and final A–G release validation before Production promotion.
+> Migration history is reconciled and fresh-environment replay/security regression are automated and passing through migration 019. Continue Epic 11 with observability, background jobs, AI cost accounting, expanded security regression, and final A–G release validation before Production promotion.
 
 Do not restart the project or recreate completed work.
