@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 
 -- Structural security invariants
-DO $$
+DO $regression$
 DECLARE
   missing_rls text[];
 BEGIN
@@ -24,9 +24,9 @@ BEGIN
     RAISE EXCEPTION 'RLS missing on: %', missing_rls;
   END IF;
 END
-$$;
+$regression$;
 
-DO $$
+DO $regression$
 DECLARE
   exposed text[];
 BEGIN
@@ -48,9 +48,9 @@ BEGIN
     RAISE EXCEPTION 'anon unexpectedly has table grants on: %', exposed;
   END IF;
 END
-$$;
+$regression$;
 
-DO $$
+DO $regression$
 BEGIN
   IF has_table_privilege('authenticated', 'public.experiment_reviews', 'insert') THEN
     RAISE EXCEPTION 'authenticated must not INSERT experiment_reviews';
@@ -235,7 +235,7 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
 
-DO $$
+DO $regression$
 DECLARE
   project_count integer;
   gap_count integer;
@@ -259,7 +259,7 @@ BEGIN
       project_count, gap_count, experiment_count;
   END IF;
 END
-$$;
+$regression$;
 ROLLBACK;
 
 -- State machine: invalid DISCOVERY -> EVIDENCE jump must fail.
@@ -268,7 +268,7 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
 
-DO $$
+DO $regression$
 DECLARE
   rejected boolean := false;
 BEGIN
@@ -284,7 +284,7 @@ BEGIN
     RAISE EXCEPTION 'state machine allowed invalid DISCOVERY -> EVIDENCE transition';
   END IF;
 END
-$$;
+$regression$;
 ROLLBACK;
 
 -- Experiment READY gate: cannot become READY without a critic review.
@@ -293,7 +293,7 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
 
-DO $$
+DO $regression$
 DECLARE
   rejected boolean := false;
 BEGIN
@@ -307,16 +307,16 @@ BEGIN
     RAISE EXCEPTION 'READY gate allowed experiment without Scientific Critic review';
   END IF;
 END
-$$;
+$regression$;
 ROLLBACK;
 
 -- Ensure browser role cannot mutate experiment status directly.
-DO $$
+DO $regression$
 BEGIN
   IF has_column_privilege('authenticated', 'public.experiments', 'status', 'update') THEN
     RAISE EXCEPTION 'authenticated must not directly UPDATE experiments.status';
   END IF;
 END
-$$;
+$regression$;
 
 SELECT 'security regression baseline passed' AS result;
