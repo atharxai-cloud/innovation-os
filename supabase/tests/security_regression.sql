@@ -95,7 +95,7 @@ BEGIN
     RAISE EXCEPTION 'authenticated must not execute consume_rate_limit';
   END IF;
 END
-$;
+$regression$;
 
 -- Synthetic identities for RLS/state-machine regression.
 INSERT INTO auth.users (
