@@ -1,13 +1,20 @@
-import { WorkspacePlaceholder } from "@/components/project/workspace-placeholder";
+import { ExperimentWorkbench } from "@/components/experiments/experiment-workbench";
+import { getExperimentWorkspace } from "@/lib/experiments/data";
 
-export default function ExperimentsPage() {
+type ExperimentsPageProps = {
+  params: Promise<{ projectId: string }>;
+};
+
+export default async function ExperimentsPage({ params }: ExperimentsPageProps) {
+  const { projectId } = await params;
+  const data = await getExperimentWorkspace(projectId);
+
   return (
-    <WorkspacePlaceholder
-      eyebrow="Experiments"
-      title="تصميم التجربة"
-      known="لا توجد تجربة مصممة بعد."
-      unknown="ما الفرضية والمتغيرات وطريقة القياس ومعيار النجاح؟"
-      next="Experiment Designer + Scientific Critic سيتم تنفيذهما كعاملين مستقلين."
+    <ExperimentWorkbench
+      projectId={projectId}
+      gaps={data.gaps}
+      experiments={data.experiments}
+      reviews={data.reviews}
     />
   );
 }
