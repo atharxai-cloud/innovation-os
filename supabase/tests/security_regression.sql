@@ -71,7 +71,7 @@ BEGIN
     RAISE EXCEPTION 'authenticated must not access ai_pre_auth_runs';
   END IF;
 END
-$;
+$$;
 
 -- Synthetic identities for RLS/state-machine regression.
 INSERT INTO auth.users (
