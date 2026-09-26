@@ -35,6 +35,17 @@ describe("estimateOpenAiCostUsd", () => {
     ).toBe(1.4);
   });
 
+  it("applies the long-context multiplier above 272K input tokens", () => {
+    expect(
+      estimateOpenAiCostUsd("gpt-5.6-luna", {
+        inputTokens: 300_000,
+        cachedInputTokens: 100_000,
+        outputTokens: 100_000,
+        reasoningTokens: 0,
+      }),
+    ).toBe(0.3);
+  });
+
   it("returns null for unknown models or incomplete usage", () => {
     expect(
       estimateOpenAiCostUsd("unknown-model", {
