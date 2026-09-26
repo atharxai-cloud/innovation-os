@@ -1,13 +1,19 @@
-import { WorkspacePlaceholder } from "@/components/project/workspace-placeholder";
+import { PriorArtWorkbench } from "@/components/prior-art/prior-art-workbench";
+import { getPriorArtWorkspace } from "@/lib/prior-art/data";
 
-export default function PriorArtPage() {
+type PriorArtPageProps = {
+  params: Promise<{ projectId: string }>;
+};
+
+export default async function PriorArtPage({ params }: PriorArtPageProps) {
+  const { projectId } = await params;
+  const data = await getPriorArtWorkspace(projectId);
+
   return (
-    <WorkspacePlaceholder
-      eyebrow="Prior Art"
-      title="اكتشاف الأعمال السابقة"
-      known="لا توجد نتائج Prior Art محفوظة بعد."
-      unknown="ما أقرب الأبحاث أو التقنيات أو سجلات البراءات ذات الصلة؟"
-      next="Prior-Art Discovery سيتم تنفيذه في Epic 6 دون إصدار رأي قانوني."
+    <PriorArtWorkbench
+      projectId={projectId}
+      savedItems={data.items}
+      savedSources={data.sources}
     />
   );
 }
