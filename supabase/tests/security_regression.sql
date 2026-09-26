@@ -13,7 +13,7 @@ BEGIN
     AND c.relname = ANY (ARRAY[
       'profiles','workspaces','workspace_members','projects','project_members',
       'project_problems','project_assumptions','project_questions','project_snapshots',
-      'audit_events','ai_runs','ai_artifacts','sources','project_sources','claims',
+      'audit_events','ai_runs','ai_artifacts','ai_pre_auth_runs','sources','project_sources','claims',
       'claim_sources','prior_art_items','gaps','gap_evidence','gap_prior_art',
       'experiments','experiment_reviews'
     ])
@@ -37,7 +37,7 @@ BEGIN
     AND table_name = ANY (ARRAY[
       'profiles','workspaces','workspace_members','projects','project_members',
       'project_problems','project_assumptions','project_questions','project_snapshots',
-      'audit_events','ai_runs','ai_artifacts','sources','project_sources','claims',
+      'audit_events','ai_runs','ai_artifacts','ai_pre_auth_runs','sources','project_sources','claims',
       'claim_sources','prior_art_items','gaps','gap_evidence','gap_prior_art',
       'experiments','experiment_reviews'
     ]);
@@ -57,8 +57,21 @@ BEGIN
   IF NOT has_table_privilege('authenticated', 'public.experiment_reviews', 'select') THEN
     RAISE EXCEPTION 'authenticated must be able to SELECT authorized experiment_reviews';
   END IF;
+
+  IF has_table_privilege('authenticated', 'public.ai_runs', 'insert')
+     OR has_table_privilege('authenticated', 'public.ai_runs', 'update')
+     OR has_table_privilege('authenticated', 'public.ai_runs', 'delete') THEN
+    RAISE EXCEPTION 'authenticated must not mutate ai_runs';
+  END IF;
+
+  IF has_table_privilege('authenticated', 'public.ai_pre_auth_runs', 'select')
+     OR has_table_privilege('authenticated', 'public.ai_pre_auth_runs', 'insert')
+     OR has_table_privilege('authenticated', 'public.ai_pre_auth_runs', 'update')
+     OR has_table_privilege('authenticated', 'public.ai_pre_auth_runs', 'delete') THEN
+    RAISE EXCEPTION 'authenticated must not access ai_pre_auth_runs';
+  END IF;
 END
-$$;
+$;
 
 -- Synthetic identities for RLS/state-machine regression.
 INSERT INTO auth.users (
