@@ -1,4 +1,5 @@
 import type { ScientificCriticReview } from "@/lib/experiments/types";
+import { observedOpenAIResponse, type AiObservationContext } from "@/lib/ai/observed-openai";
 
 const schema = {
   type: "object",
@@ -40,19 +41,12 @@ function outputText(payload: unknown) {
   return null;
 }
 
-export async function critiqueExperiment(context: Record<string, unknown>): Promise<ScientificCriticReview> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY missing");
-
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    cache: "no-store",
-    body: JSON.stringify({
-      model: process.env.OPENAI_SCIENTIFIC_CRITIC_MODEL ?? "gpt-5.6-sol",
+export async function critiqueExperiment(context: Record<string, unknown>, observation: AiObservationContext): Promise<ScientificCriticReview> {
+  const model = process.env.OPENAI_SCIENTIFIC_CRITIC_MODEL ?? "gpt-5.6-sol";
+  const { payload } = await observedOpenAIResponse({
+    context: observation,
+    model,
+    body: {
       reasoning: { effort: "high" },
       instructions: [
         "You are an independent Scientific Critic. You did not design the experiment.",
@@ -72,11 +66,9 @@ export async function critiqueExperiment(context: Record<string, unknown>): Prom
           schema,
         },
       },
-    }),
+    },
   });
-
-  if (!response.ok) throw new Error(`Critic failed: ${response.status}`);
-  const text = outputText(await response.json());
+  const text = outputText(payload);
   if (!text) throw new Error("Critic output missing");
   return JSON.parse(text) as ScientificCriticReview;
 }
