@@ -7,7 +7,7 @@
 **Architecture:** Next.js App Router + TypeScript + Supabase + modular monolith + agentic AI orchestration
 
 **Current main HEAD verified:** `03cd2cce99a469b1a5967d4aa93b524eb3e39d68`  
-**Current implementation status:** Epics 1–9 are present on `main`; Epic 10 is the next product epic.  
+**Current implementation status:** Epics 1–10 are present on `main`; Epic 11 is the next product epic.  
 **Staging security status:** Supabase Security Advisor = zero findings at verification.  
 
 ---
@@ -500,9 +500,20 @@ Before public onboarding:
 
 # 12. Next Epics
 
-Epic 7, Epic 8, and Epic 9 are complete on `main`.
+Epic 7, Epic 8, Epic 9, and Epic 10 are complete on `main`.
 
 ## Epic 10 — Ask My Project
+
+Completed on `main`.
+
+Uses a bounded Project Context Pack and grounded response classes:
+- Fact
+- Inference
+- Recommendation
+
+Implementation is documented in `docs/15-epic-10-ask-my-project.md`.
+
+## Epic 11 — Release Hardening
 
 Must use Project Context Pack, not whole project dump.
 
@@ -519,7 +530,6 @@ Questions include:
 - ما الفرق بين الحل والأعمال السابقة؟
 - ما التجربة التالية؟
 
-## Epic 11 — Release Hardening
 
 Includes:
 - durable rate limiting
@@ -558,9 +568,7 @@ Ask My Project answers from Project Data
 ### G
 User A cannot access User B data
 
-A, B, C, D, E and repeated G checks have been validated during development.
-
-F remains and belongs to Epic 10 — Ask My Project.
+A, B, C, D, E, F and repeated G checks have been validated during development.
 
 ---
 
@@ -616,7 +624,7 @@ Scientific Critic
 ✓
 
 Ask My Project
-NOT STARTED
+✓
 
 Release Hardening
 NOT STARTED
@@ -624,6 +632,6 @@ NOT STARTED
 
 The immediate action in the next chat is:
 
-> Do not return to the legacy Epic 7 branch. Verify the current main through the canonical CI gate, reconcile staging migration-history drift before production promotion, then proceed to Epic 10 — Ask My Project.
+> Do not return to legacy Epic branches. Reconcile staging migration-history drift before production promotion, then proceed to Epic 11 — Release Hardening.
 
 Do not restart the project or recreate completed work.
