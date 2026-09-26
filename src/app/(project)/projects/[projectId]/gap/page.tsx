@@ -1,13 +1,13 @@
-import { WorkspacePlaceholder } from "@/components/project/workspace-placeholder";
+import { GapWorkbench } from "@/components/gaps/gap-workbench";
+import { getGapWorkspace } from "@/lib/gaps/data";
 
-export default function GapPage() {
-  return (
-    <WorkspacePlaceholder
-      eyebrow="Gap"
-      title="تحديد الفجوة"
-      known="الفجوات يجب أن تُبنى على Evidence وPrior Art محفوظين."
-      unknown="أين توجد القيود أو السياقات غير المخدومة أو فرص التحسين؟"
-      next="Gap Finder سيُفعل بعد تحقق الحد الأدنى من السياق."
-    />
-  );
+type GapPageProps = {
+  params: Promise<{ projectId: string }>;
+};
+
+export default async function GapPage({ params }: GapPageProps) {
+  const { projectId } = await params;
+  const gaps = await getGapWorkspace(projectId);
+
+  return <GapWorkbench projectId={projectId} savedGaps={gaps} />;
 }
