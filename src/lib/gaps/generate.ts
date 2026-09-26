@@ -1,4 +1,5 @@
 import type { GapCandidate } from "@/lib/gaps/types";
+import { observedOpenAIResponse, type AiObservationContext } from "@/lib/ai/observed-openai";
 
 const schema = {
   type: "object",
@@ -48,19 +49,13 @@ function outputText(payload: unknown) {
   return null;
 }
 
-export async function generateGapCandidates(context: Record<string, unknown>): Promise<GapCandidate[]> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY missing");
+export async function generateGapCandidates(context: Record<string, unknown>, observation: AiObservationContext): Promise<GapCandidate[]> {
+  const model = process.env.OPENAI_GAP_MODEL ?? "gpt-5.6-luna";
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    cache: "no-store",
-    body: JSON.stringify({
-      model: process.env.OPENAI_GAP_MODEL ?? "gpt-5.6-luna",
+  const { payload } = await observedOpenAIResponse({
+    context: observation,
+    model,
+    body: {
       instructions: [
         "You are the Gap Finder agent inside Innovation OS.",
         "Use only the supplied evidence, prior art, problem, and assumptions.",
@@ -81,11 +76,10 @@ export async function generateGapCandidates(context: Record<string, unknown>): P
           schema,
         },
       },
-    }),
+    },
   });
 
-  if (!response.ok) throw new Error(`Gap generation failed: ${response.status}`);
-  const text = outputText(await response.json());
+  const text = outputText(payload);
   if (!text) throw new Error("Gap output missing");
   return (JSON.parse(text) as { gaps: GapCandidate[] }).gaps;
 }
