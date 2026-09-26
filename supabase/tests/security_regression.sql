@@ -164,79 +164,70 @@ INSERT INTO public.experiments (
 COMMIT;
 
 -- Durable rate limiter must enforce the configured quota.
-SELECT public.consume_rate_limit(
-  'CI_TEST',
-  'security-regression-key',
-  1,
-  600
-) AS first_allowed \gset
+SELECT 1 / CASE
+  WHEN public.consume_rate_limit(
+    'CI_TEST',
+    'security-regression-key',
+    1,
+    600
+  ) THEN 1 ELSE 0
+END AS rate_limit_first_request_passed;
 
-SELECT public.consume_rate_limit(
-  'CI_TEST',
-  'security-regression-key',
-  1,
-  600
-) AS second_allowed \gset
-
-\if :first_allowed
-\else
-  \echo 'durable rate limiter unexpectedly rejected first request'
-  \quit 3
-\endif
-
-\if :second_allowed
-  \echo 'durable rate limiter unexpectedly allowed request over quota'
-  \quit 3
-\endif
+SELECT 1 / CASE
+  WHEN NOT public.consume_rate_limit(
+    'CI_TEST',
+    'security-regression-key',
+    1,
+    600
+  ) THEN 1 ELSE 0
+END AS rate_limit_over_quota_passed;
 
 DELETE FROM public.rate_limit_buckets
 WHERE scope = 'CI_TEST' AND key_hash = 'security-regression-key';
 
 -- Durable queue must enqueue, claim, and complete a project-scoped job.
-SELECT workspace_id::text AS ci_workspace_id
-FROM public.projects
-WHERE id = '11111111-1111-4111-8111-111111111111'
-\gset
-
-SELECT public.enqueue_background_job(
-  :'ci_workspace_id'::uuid,
-  '11111111-1111-4111-8111-111111111111',
-  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-  'EVIDENCE_SEARCH',
-  '{"query":"synthetic evidence","type":"PROBLEM_EVIDENCE"}'::jsonb
-)::text AS ci_job_id
-\gset
-
-SELECT msg_id AS ci_msg_id
-FROM public.claim_background_jobs(1)
-WHERE job_id = :'ci_job_id'::uuid
-\gset
-
-SELECT public.complete_background_job(
-  :'ci_job_id'::uuid,
-  :ci_msg_id::bigint,
-  '{"ok":true}'::jsonb
-) AS ci_completed
-\gset
-
-\if :ci_completed
-\else
-  \echo 'background job completion returned false'
-  \quit 3
-\endif
-
-SELECT (status = 'SUCCEEDED') AS ci_job_succeeded
-FROM public.background_jobs
-WHERE id = :'ci_job_id'::uuid
-\gset
-
-\if :ci_job_succeeded
-\else
-  \echo 'background job did not reach SUCCEEDED'
-  \quit 3
-\endif
-
-DELETE FROM public.background_jobs WHERE id = :'ci_job_id'::uuid;
+WITH workspace_row AS (
+  SELECT workspace_id
+  FROM public.projects
+  WHERE id = '11111111-1111-4111-8111-111111111111'
+),
+enqueued AS (
+  SELECT public.enqueue_background_job(
+    workspace_id,
+    '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'EVIDENCE_SEARCH',
+    '{"query":"synthetic evidence","type":"PROBLEM_EVIDENCE"}'::jsonb
+  ) AS job_id
+  FROM workspace_row
+),
+claimed AS (
+  SELECT c.msg_id, c.job_id
+  FROM enqueued e
+  CROSS JOIN LATERAL public.claim_background_jobs(1) c
+  WHERE c.job_id = e.job_id
+),
+completed AS (
+  SELECT
+    c.job_id,
+    public.complete_background_job(
+      c.job_id,
+      c.msg_id,
+      '{"ok":true}'::jsonb
+    ) AS completed
+  FROM claimed c
+)
+SELECT 1 / CASE
+  WHEN completed.completed
+   AND EXISTS (
+     SELECT 1
+     FROM public.background_jobs j
+     WHERE j.id = completed.job_id
+       AND j.status = 'SUCCEEDED'
+   )
+  THEN 1 ELSE 0
+END AS background_queue_roundtrip_passed
+FROM completed;
 
 -- User B must not see User A's tenant data.
 BEGIN;
