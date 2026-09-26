@@ -2,12 +2,23 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { critiqueExperiment } from "@/lib/experiments/critic";
+import { consumeRateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ projectId: string; experimentId: string }> },
 ) {
   const { projectId, experimentId } = await context.params;
+
+  const rate = await consumeRateLimit({
+    request,
+    scope: "scientific-critic",
+    limit: 8,
+    windowSeconds: 600,
+  });
+  const limited = rateLimitResponse(rate);
+  if (limited) return limited;
+
   const supabase = await createClient();
 
   const [project, problem, experiment, gap, claims] = await Promise.all([
