@@ -1,7 +1,7 @@
-import { createHash } from "node:crypto";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { searchEvidence } from "@/lib/research/search";
+import { enqueueProjectJob } from "@/lib/jobs/queue";
+import { processBackgroundJobs } from "@/lib/jobs/worker";
 import type { EvidenceSearchType } from "@/lib/research/types";
 
 const allowedTypes = new Set<EvidenceSearchType>([
@@ -18,7 +18,12 @@ export async function POST(
   const { projectId } = await context.params;
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getClaims();
-  const actorId = typeof authData?.claims?.sub === "string" ? authData.claims.sub : null;
+  const actorId =
+    typeof authData?.claims?.sub === "string" ? authData.claims.sub : null;
+
+  if (!actorId) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
 
   const { data: project } = await supabase
     .from("projects")
@@ -36,7 +41,8 @@ export async function POST(
 
   const query = typeof body?.query === "string" ? body.query.trim() : "";
   const type =
-    typeof body?.type === "string" && allowedTypes.has(body.type as EvidenceSearchType)
+    typeof body?.type === "string" &&
+    allowedTypes.has(body.type as EvidenceSearchType)
       ? (body.type as EvidenceSearchType)
       : "PROBLEM_EVIDENCE";
 
@@ -45,19 +51,26 @@ export async function POST(
   }
 
   try {
-    const result = await searchEvidence(query, type, {
+    const jobId = await enqueueProjectJob({
       workspaceId: project.workspace_id,
       projectId,
       actorId,
-      agentType: "EVIDENCE_QUERY_EXPANSION",
-      inputHash: createHash("sha256").update(`${type}:${query}`).digest("hex"),
-      metadata: { evidence_search_type: type },
+      jobType: "EVIDENCE_SEARCH",
+      payload: { query, type },
     });
-    return NextResponse.json(result);
+
+    after(async () => {
+      await processBackgroundJobs(1).catch(() => undefined);
+    });
+
+    return NextResponse.json(
+      { job_id: jobId, status: "QUEUED" },
+      { status: 202 },
+    );
   } catch {
     return NextResponse.json(
-      { error: "research_provider_failed" },
-      { status: 502 },
+      { error: "job_enqueue_failed" },
+      { status: 503 },
     );
   }
 }
