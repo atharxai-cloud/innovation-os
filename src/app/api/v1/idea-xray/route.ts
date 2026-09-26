@@ -53,6 +53,7 @@ export async function POST(request: Request) {
         requestId: result.requestId,
         durationMs: result.durationMs,
         estimatedCostUsd: result.estimatedCostUsd,
+        runId: result.telemetryRunId,
       },
     });
   } catch {
