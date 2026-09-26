@@ -5,23 +5,23 @@ describe("estimateOpenAiCostUsd", () => {
   it("calculates Luna standard token cost", () => {
     expect(
       estimateOpenAiCostUsd("gpt-5.6-luna", {
-        inputTokens: 1_000_000,
+        inputTokens: 100_000,
         cachedInputTokens: 0,
-        outputTokens: 1_000_000,
+        outputTokens: 100_000,
         reasoningTokens: 0,
       }),
-    ).toBe(1.4);
+    ).toBe(0.14);
   });
 
   it("uses cached-input pricing only for cached input tokens", () => {
     expect(
       estimateOpenAiCostUsd("gpt-5.6-terra", {
-        inputTokens: 1_000_000,
-        cachedInputTokens: 500_000,
+        inputTokens: 200_000,
+        cachedInputTokens: 100_000,
         outputTokens: 100_000,
         reasoningTokens: 20_000,
       }),
-    ).toBe(2.3);
+    ).toBe(1.42);
   });
 
   it("does not double-charge reasoning tokens outside output tokens", () => {
