@@ -1,3 +1,4 @@
+import { observedOpenAIResponse, type AiObservationContext } from "@/lib/ai/observed-openai";
 export type AskProjectAnswer = {
   summary: string;
   facts: Array<{
@@ -93,19 +94,13 @@ function outputText(payload: unknown) {
 export async function askProjectAgent(input: {
   question: string;
   contextPack: Record<string, unknown>;
-}): Promise<AskProjectAnswer> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY missing");
-
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    cache: "no-store",
-    body: JSON.stringify({
-      model: process.env.OPENAI_ASK_PROJECT_MODEL ?? "gpt-5.6-terra",
+  observation: AiObservationContext;
+}): Promise<{ answer: AskProjectAnswer; runId: string | null }> {
+  const model = process.env.OPENAI_ASK_PROJECT_MODEL ?? "gpt-5.6-terra";
+  const { payload, runId } = await observedOpenAIResponse({
+    context: input.observation,
+    model,
+    body: {
       reasoning: { effort: "medium" },
       instructions: [
         "You are Ask My Project inside Innovation OS.",
@@ -118,7 +113,10 @@ export async function askProjectAgent(input: {
         "If the context cannot answer the question, say what is missing.",
         "Write concise Arabic while preserving useful technical terminology.",
       ].join("\n"),
-      input: JSON.stringify(input),
+      input: JSON.stringify({
+        question: input.question,
+        contextPack: input.contextPack,
+      }),
       max_output_tokens: 2200,
       text: {
         format: {
@@ -128,11 +126,9 @@ export async function askProjectAgent(input: {
           schema,
         },
       },
-    }),
+    },
   });
-
-  if (!response.ok) throw new Error(`Ask Project failed: ${response.status}`);
-  const text = outputText(await response.json());
+  const text = outputText(payload);
   if (!text) throw new Error("Ask Project output missing");
-  return JSON.parse(text) as AskProjectAnswer;
+  return { answer: JSON.parse(text) as AskProjectAnswer, runId };
 }
