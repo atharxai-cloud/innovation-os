@@ -1,4 +1,5 @@
 export type IdeaXRayTelemetry = {
+  runId: string | null;
   model: string;
   inputHash: string;
   usage: {
