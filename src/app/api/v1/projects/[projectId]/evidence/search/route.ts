@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { searchEvidence } from "@/lib/research/search";
 import type { EvidenceSearchType } from "@/lib/research/types";
+import { consumeRateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
 
 const allowedTypes = new Set<EvidenceSearchType>([
   "PROBLEM_EVIDENCE",
@@ -26,6 +27,15 @@ export async function POST(
   if (!project) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
+
+  const rate = await consumeRateLimit({
+    request,
+    scope: "evidence-search",
+    limit: 20,
+    windowSeconds: 600,
+  });
+  const limited = rateLimitResponse(rate);
+  if (limited) return limited;
 
   const body = await request.json().catch(() => null) as
     | { query?: unknown; type?: unknown }
