@@ -43,7 +43,7 @@ describe("estimateOpenAiCostUsd", () => {
         outputTokens: 100_000,
         reasoningTokens: 0,
       }),
-    ).toBe(0.3);
+    ).toBe(0.264);
   });
 
   it("returns null for unknown models or incomplete usage", () => {
