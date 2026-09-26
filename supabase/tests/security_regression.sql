@@ -186,48 +186,48 @@ DELETE FROM public.rate_limit_buckets
 WHERE scope = 'CI_TEST' AND key_hash = 'security-regression-key';
 
 -- Durable queue must enqueue, claim, and complete a project-scoped job.
-WITH workspace_row AS (
-  SELECT workspace_id
-  FROM public.projects
-  WHERE id = '11111111-1111-4111-8111-111111111111'
-),
-enqueued AS (
-  SELECT public.enqueue_background_job(
-    workspace_id,
-    '11111111-1111-4111-8111-111111111111',
-    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    'EVIDENCE_SEARCH',
-    '{"query":"synthetic evidence","type":"PROBLEM_EVIDENCE"}'::jsonb
-  ) AS job_id
-  FROM workspace_row
-),
-claimed AS (
-  SELECT c.msg_id, c.job_id
-  FROM enqueued e
-  CROSS JOIN LATERAL public.claim_background_jobs(1) c
-  WHERE c.job_id = e.job_id
-),
-completed AS (
-  SELECT
-    c.job_id,
-    public.complete_background_job(
-      c.job_id,
-      c.msg_id,
-      '{"ok":true}'::jsonb
-    ) AS completed
-  FROM claimed c
+CREATE TEMP TABLE ci_background_job (
+  job_id uuid primary key,
+  msg_id bigint
+) ON COMMIT PRESERVE ROWS;
+
+INSERT INTO ci_background_job (job_id)
+SELECT public.enqueue_background_job(
+  p.workspace_id,
+  p.id,
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'EVIDENCE_SEARCH',
+  '{"query":"synthetic evidence","type":"PROBLEM_EVIDENCE"}'::jsonb
 )
+FROM public.projects p
+WHERE p.id = '11111111-1111-4111-8111-111111111111';
+
+UPDATE ci_background_job t
+SET msg_id = c.msg_id
+FROM public.claim_background_jobs(1) c
+WHERE c.job_id = t.job_id;
+
 SELECT 1 / CASE
-  WHEN completed.completed
-   AND EXISTS (
-     SELECT 1
-     FROM public.background_jobs j
-     WHERE j.id = completed.job_id
-       AND j.status = 'SUCCEEDED'
-   )
-  THEN 1 ELSE 0
-END AS background_queue_roundtrip_passed
-FROM completed;
+  WHEN msg_id IS NOT NULL THEN 1 ELSE 0
+END AS background_queue_claim_passed
+FROM ci_background_job;
+
+SELECT 1 / CASE
+  WHEN public.complete_background_job(
+    job_id,
+    msg_id,
+    '{"ok":true}'::jsonb
+  ) THEN 1 ELSE 0
+END AS background_queue_complete_passed
+FROM ci_background_job;
+
+SELECT 1 / CASE
+  WHEN j.status = 'SUCCEEDED' THEN 1 ELSE 0
+END AS background_queue_status_passed
+FROM public.background_jobs j
+JOIN ci_background_job t ON t.job_id = j.id;
+
+DROP TABLE ci_background_job;
 
 -- User B must not see User A's tenant data.
 BEGIN;
