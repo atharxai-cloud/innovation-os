@@ -1,51 +1,52 @@
+import { observedOpenAIResponse, type AiObservationContext } from "@/lib/ai/observed-openai";
 import type { EvidenceSearchType } from "@/lib/research/types";
 
 export async function expandEvidenceQuery(
   query: string,
   type: EvidenceSearchType,
+  observation?: AiObservationContext,
 ) {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return [query];
+  if (!apiKey || !observation) return [query];
 
   const model = process.env.OPENAI_EVIDENCE_QUERY_MODEL ?? "gpt-5.6-luna";
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    cache: "no-store",
-    body: JSON.stringify({
+  let payload: { output?: unknown[] };
+
+  try {
+    ({ payload } = await observedOpenAIResponse({
+      context: observation,
       model,
-      instructions:
-        "Expand an Arabic or English research question into up to 3 concise English scholarly search queries. Preserve scientific meaning. Do not answer the question.",
-      input: JSON.stringify({ query, type }),
-      max_output_tokens: 300,
-      text: {
-        format: {
-          type: "json_schema",
-          name: "evidence_queries",
-          strict: true,
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            required: ["queries"],
-            properties: {
-              queries: {
-                type: "array",
-                minItems: 1,
-                maxItems: 3,
-                items: { type: "string", minLength: 3, maxLength: 300 },
+      body: {
+        instructions:
+          "Expand an Arabic or English research question into up to 3 concise English scholarly search queries. Preserve scientific meaning. Do not answer the question.",
+        input: JSON.stringify({ query, type }),
+        max_output_tokens: 300,
+        text: {
+          format: {
+            type: "json_schema",
+            name: "evidence_queries",
+            strict: true,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              required: ["queries"],
+              properties: {
+                queries: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 3,
+                  items: { type: "string", minLength: 3, maxLength: 300 },
+                },
               },
             },
           },
         },
       },
-    }),
-  });
+    }));
+  } catch {
+    return [query];
+  }
 
-  if (!response.ok) return [query];
-  const payload = await response.json() as { output?: unknown[] };
   for (const item of payload.output ?? []) {
     if (!item || typeof item !== "object") continue;
     for (const part of (item as { content?: unknown[] }).content ?? []) {
