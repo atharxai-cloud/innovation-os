@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { estimateOpenAiCostUsd } from "@/lib/ai/pricing";
+import { estimateOpenAiCostUsd } from "./pricing";
 
 describe("estimateOpenAiCostUsd", () => {
   it("calculates Luna standard token cost", () => {
