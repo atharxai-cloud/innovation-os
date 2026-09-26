@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { searchPriorArt } from "@/lib/prior-art/search";
+import { enqueueProjectJob } from "@/lib/jobs/queue";
+import { processBackgroundJobs } from "@/lib/jobs/worker";
 
 export async function POST(
   request: Request,
@@ -8,10 +9,17 @@ export async function POST(
 ) {
   const { projectId } = await context.params;
   const supabase = await createClient();
+  const { data: authData } = await supabase.auth.getClaims();
+  const actorId =
+    typeof authData?.claims?.sub === "string" ? authData.claims.sub : null;
+
+  if (!actorId) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id")
+    .select("id,workspace_id")
     .eq("id", projectId)
     .maybeSingle();
 
@@ -27,9 +35,26 @@ export async function POST(
   }
 
   try {
-    const result = await searchPriorArt(query);
-    return NextResponse.json(result);
+    const jobId = await enqueueProjectJob({
+      workspaceId: project.workspace_id,
+      projectId,
+      actorId,
+      jobType: "PRIOR_ART_SEARCH",
+      payload: { query },
+    });
+
+    after(async () => {
+      await processBackgroundJobs(1).catch(() => undefined);
+    });
+
+    return NextResponse.json(
+      { job_id: jobId, status: "QUEUED" },
+      { status: 202 },
+    );
   } catch {
-    return NextResponse.json({ error: "prior_art_search_failed" }, { status: 502 });
+    return NextResponse.json(
+      { error: "job_enqueue_failed" },
+      { status: 503 },
+    );
   }
 }
