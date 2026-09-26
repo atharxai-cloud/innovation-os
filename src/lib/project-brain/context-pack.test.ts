@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectIntent } from "./context-pack";
+import { detectIntent } from "./intent";
 
 describe("Ask My Project intent routing", () => {
   it("routes evidence questions to evidence context", () => {
