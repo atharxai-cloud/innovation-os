@@ -12,8 +12,13 @@ type GatewayResult = {
   inputHash: string;
   usage: {
     inputTokens: number | null;
+    cachedInputTokens: number | null;
     outputTokens: number | null;
+    reasoningTokens: number | null;
   };
+  requestId: string | null;
+  durationMs: number;
+  estimatedCostUsd: number | null;
 };
 
 function extractOutputText(payload: unknown) {
@@ -48,7 +53,7 @@ export async function runIdeaXRay(
   const model = process.env.OPENAI_IDEA_XRAY_MODEL ?? "gpt-5.6-luna";
   const inputHash = createHash("sha256").update(idea).digest("hex");
 
-  const { payload, usage } = await observedOpenAIResponse({
+  const { payload, usage, requestId, durationMs, estimatedCost } = await observedOpenAIResponse({
     context: {
       agentType: "IDEA_XRAY",
       inputHash,
@@ -98,5 +103,8 @@ export async function runIdeaXRay(
     model,
     inputHash,
     usage,
+    requestId,
+    durationMs,
+    estimatedCostUsd: estimatedCost,
   };
 }
