@@ -164,78 +164,79 @@ INSERT INTO public.experiments (
 COMMIT;
 
 -- Durable rate limiter must enforce the configured quota.
-DO $
-DECLARE
-  first_allowed boolean;
-  second_allowed boolean;
-BEGIN
-  first_allowed := public.consume_rate_limit(
-    'CI_TEST',
-    'security-regression-key',
-    1,
-    600
-  );
-  second_allowed := public.consume_rate_limit(
-    'CI_TEST',
-    'security-regression-key',
-    1,
-    600
-  );
+SELECT public.consume_rate_limit(
+  'CI_TEST',
+  'security-regression-key',
+  1,
+  600
+) AS first_allowed \gset
 
-  IF first_allowed IS DISTINCT FROM true OR second_allowed IS DISTINCT FROM false THEN
-    RAISE EXCEPTION 'durable rate limiter did not enforce quota';
-  END IF;
+SELECT public.consume_rate_limit(
+  'CI_TEST',
+  'security-regression-key',
+  1,
+  600
+) AS second_allowed \gset
 
-  DELETE FROM public.rate_limit_buckets
-  WHERE scope = 'CI_TEST' AND key_hash = 'security-regression-key';
-END
-$;
+\if :first_allowed
+\else
+  \echo 'durable rate limiter unexpectedly rejected first request'
+  \quit 3
+\endif
+
+\if :second_allowed
+  \echo 'durable rate limiter unexpectedly allowed request over quota'
+  \quit 3
+\endif
+
+DELETE FROM public.rate_limit_buckets
+WHERE scope = 'CI_TEST' AND key_hash = 'security-regression-key';
 
 -- Durable queue must enqueue, claim, and complete a project-scoped job.
-DO $
-DECLARE
-  v_workspace_id uuid;
-  v_job_id uuid;
-  v_msg_id bigint;
-  v_status text;
-BEGIN
-  SELECT workspace_id INTO v_workspace_id
-  FROM public.projects
-  WHERE id = '11111111-1111-4111-8111-111111111111';
+SELECT workspace_id::text AS ci_workspace_id
+FROM public.projects
+WHERE id = '11111111-1111-4111-8111-111111111111'
+\gset
 
-  v_job_id := public.enqueue_background_job(
-    v_workspace_id,
-    '11111111-1111-4111-8111-111111111111',
-    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    'EVIDENCE_SEARCH',
-    '{"query":"synthetic evidence","type":"PROBLEM_EVIDENCE"}'::jsonb
-  );
+SELECT public.enqueue_background_job(
+  :'ci_workspace_id'::uuid,
+  '11111111-1111-4111-8111-111111111111',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'EVIDENCE_SEARCH',
+  '{"query":"synthetic evidence","type":"PROBLEM_EVIDENCE"}'::jsonb
+)::text AS ci_job_id
+\gset
 
-  SELECT msg_id INTO v_msg_id
-  FROM public.claim_background_jobs(1)
-  WHERE job_id = v_job_id;
+SELECT msg_id AS ci_msg_id
+FROM public.claim_background_jobs(1)
+WHERE job_id = :'ci_job_id'::uuid
+\gset
 
-  IF v_msg_id IS NULL THEN
-    RAISE EXCEPTION 'background job could not be claimed';
-  END IF;
+SELECT public.complete_background_job(
+  :'ci_job_id'::uuid,
+  :ci_msg_id::bigint,
+  '{"ok":true}'::jsonb
+) AS ci_completed
+\gset
 
-  PERFORM public.complete_background_job(
-    v_job_id,
-    v_msg_id,
-    '{"ok":true}'::jsonb
-  );
+\if :ci_completed
+\else
+  \echo 'background job completion returned false'
+  \quit 3
+\endif
 
-  SELECT status INTO v_status
-  FROM public.background_jobs
-  WHERE id = v_job_id;
+SELECT (status = 'SUCCEEDED') AS ci_job_succeeded
+FROM public.background_jobs
+WHERE id = :'ci_job_id'::uuid
+\gset
 
-  IF v_status <> 'SUCCEEDED' THEN
-    RAISE EXCEPTION 'background job did not complete successfully';
-  END IF;
+\if :ci_job_succeeded
+\else
+  \echo 'background job did not reach SUCCEEDED'
+  \quit 3
+\endif
 
-  DELETE FROM public.background_jobs WHERE id = v_job_id;
-END
-$;
+DELETE FROM public.background_jobs WHERE id = :'ci_job_id'::uuid;
 
 -- User B must not see User A's tenant data.
 BEGIN;
