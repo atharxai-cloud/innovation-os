@@ -50,6 +50,9 @@ export async function POST(request: Request) {
         model: result.model,
         inputHash: result.inputHash,
         usage: result.usage,
+        requestId: result.requestId,
+        durationMs: result.durationMs,
+        estimatedCostUsd: result.estimatedCostUsd,
       },
     });
   } catch {
