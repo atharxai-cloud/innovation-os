@@ -8,7 +8,16 @@ export async function POST(request: Request) {
   const forwarded = request.headers.get("x-forwarded-for");
   const clientKey = forwarded?.split(",")[0]?.trim() || "unknown";
 
-  if (!consumeIdeaXRayQuota(clientKey)) {
+  const quota = await consumeIdeaXRayQuota(clientKey);
+
+  if (quota.unavailable) {
+    return NextResponse.json(
+      { error: "rate_limit_unavailable" },
+      { status: 503 },
+    );
+  }
+
+  if (!quota.allowed) {
     return NextResponse.json(
       { error: "rate_limited" },
       { status: 429 },

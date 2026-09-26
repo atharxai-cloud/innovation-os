@@ -1,6 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AI_PRICING_VERSION, estimateOpenAiCostUsd, type AiUsage } from "@/lib/ai/pricing";
 import { logEvent } from "@/lib/observability/logger";
+import { assertAiBudget } from "@/lib/ai/budget";
+import { captureOperationalEvent } from "@/lib/ops/events";
 
 export type AiObservationContext = {
   workspaceId?: string | null;
@@ -51,6 +53,14 @@ export async function observedOpenAIResponse(input: ObservedRequest) {
 
   const endpoint = "https://api.openai.com/v1/responses";
   const startedAt = Date.now();
+
+  await assertAiBudget({
+    workspaceId: input.context.workspaceId,
+    projectId: input.context.projectId,
+    actorId: input.context.actorId,
+    agentType: input.context.agentType,
+  });
+
   const admin = createAdminClient();
   let runId: string | null = null;
   let preAuthRunId: string | null = null;
@@ -219,6 +229,22 @@ export async function observedOpenAIResponse(input: ObservedRequest) {
         })
         .eq("id", preAuthRunId);
     }
+
+    await captureOperationalEvent({
+      severity: "ERROR",
+      eventType: "ai.request.failed",
+      source: "openai",
+      workspaceId: input.context.workspaceId,
+      projectId: input.context.projectId,
+      actorId: input.context.actorId,
+      message,
+      metadata: {
+        run_id: telemetryId,
+        agent_type: input.context.agentType,
+        model: input.model,
+        duration_ms: durationMs,
+      },
+    });
 
     logEvent("error", "ai.request.failed", {
       run_id: telemetryId,

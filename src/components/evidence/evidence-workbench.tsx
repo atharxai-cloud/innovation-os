@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { EvidenceSearchResult, EvidenceSearchType } from "@/lib/research/types";
+import { pollProjectJob } from "@/lib/jobs/client";
 
 type Claim = {
   id: string;
@@ -76,16 +77,24 @@ export function EvidenceWorkbench({
   async function search() {
     if (query.trim().length < 5) return;
     setLoading(true);
-    setMessage("");
+    setMessage("تم بدء البحث في الخلفية...");
     try {
       const response = await fetch(`/api/v1/projects/${projectId}/evidence/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query, type }),
       });
-      const payload = await response.json() as { results?: EvidenceSearchResult[] };
-      if (!response.ok) throw new Error();
-      setResults(payload.results ?? []);
+      const payload = await response.json() as { job_id?: string };
+      if (response.status !== 202 || !payload.job_id) throw new Error();
+
+      setMessage("جارٍ تنفيذ البحث والتحقق من المصادر...");
+      const result = await pollProjectJob<{
+        queries: string[];
+        results: EvidenceSearchResult[];
+      }>(projectId, payload.job_id);
+
+      setResults(result.results ?? []);
+      setMessage(result.results?.length ? "اكتمل البحث." : "اكتمل البحث دون نتائج مناسبة.");
     } catch {
       setMessage("تعذر إكمال البحث. لم يتم إنشاء نتائج بديلة.");
     } finally {

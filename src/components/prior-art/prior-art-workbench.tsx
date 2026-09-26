@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { PriorArtSearchResult } from "@/lib/prior-art/types";
+import { pollProjectJob } from "@/lib/jobs/client";
 
 type SavedItem = {
   id: string;
@@ -41,7 +42,7 @@ export function PriorArtWorkbench({
   async function search() {
     if (query.trim().length < 5) return;
     setLoading(true);
-    setMessage("");
+    setMessage("تم بدء Prior-Art Scan في الخلفية...");
 
     try {
       const response = await fetch(`/api/v1/projects/${projectId}/prior-art/search`, {
@@ -49,16 +50,21 @@ export function PriorArtWorkbench({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query }),
       });
-      const payload = await response.json() as {
-        research?: PriorArtSearchResult[];
-        patents?: PriorArtSearchResult[];
-        patentProviderAvailable?: boolean;
-      };
+      const payload = await response.json() as { job_id?: string };
 
-      if (!response.ok) throw new Error();
-      setResearch(payload.research ?? []);
-      setPatents(payload.patents ?? []);
-      setPatentsAvailable(payload.patentProviderAvailable ?? false);
+      if (response.status !== 202 || !payload.job_id) throw new Error();
+
+      setMessage("جارٍ البحث في الأبحاث وسجلات البراءات...");
+      const result = await pollProjectJob<{
+        research: PriorArtSearchResult[];
+        patents: PriorArtSearchResult[];
+        patentProviderAvailable: boolean;
+      }>(projectId, payload.job_id);
+
+      setResearch(result.research ?? []);
+      setPatents(result.patents ?? []);
+      setPatentsAvailable(result.patentProviderAvailable ?? false);
+      setMessage("اكتمل Prior-Art Scan.");
     } catch {
       setMessage("تعذر إكمال البحث في الأعمال السابقة. لم يتم إنشاء نتائج وهمية.");
     } finally {

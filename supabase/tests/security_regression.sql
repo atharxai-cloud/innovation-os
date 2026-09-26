@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 
 -- Structural security invariants
-DO $$
+DO $regression$
 DECLARE
   missing_rls text[];
 BEGIN
@@ -13,9 +13,10 @@ BEGIN
     AND c.relname = ANY (ARRAY[
       'profiles','workspaces','workspace_members','projects','project_members',
       'project_problems','project_assumptions','project_questions','project_snapshots',
-      'audit_events','ai_runs','ai_artifacts','ai_pre_auth_runs','sources','project_sources','claims',
-      'claim_sources','prior_art_items','gaps','gap_evidence','gap_prior_art',
-      'experiments','experiment_reviews'
+      'audit_events','ai_runs','ai_artifacts','ai_pre_auth_runs','rate_limit_buckets',
+      'background_jobs','operational_events','workspace_ai_budgets','ops_alert_state',
+      'sources','project_sources','claims','claim_sources','prior_art_items','gaps',
+      'gap_evidence','gap_prior_art','experiments','experiment_reviews'
     ])
     AND NOT c.relrowsecurity;
 
@@ -23,9 +24,9 @@ BEGIN
     RAISE EXCEPTION 'RLS missing on: %', missing_rls;
   END IF;
 END
-$$;
+$regression$;
 
-DO $$
+DO $regression$
 DECLARE
   exposed text[];
 BEGIN
@@ -37,18 +38,19 @@ BEGIN
     AND table_name = ANY (ARRAY[
       'profiles','workspaces','workspace_members','projects','project_members',
       'project_problems','project_assumptions','project_questions','project_snapshots',
-      'audit_events','ai_runs','ai_artifacts','ai_pre_auth_runs','sources','project_sources','claims',
-      'claim_sources','prior_art_items','gaps','gap_evidence','gap_prior_art',
-      'experiments','experiment_reviews'
+      'audit_events','ai_runs','ai_artifacts','ai_pre_auth_runs','rate_limit_buckets',
+      'background_jobs','operational_events','workspace_ai_budgets','ops_alert_state',
+      'sources','project_sources','claims','claim_sources','prior_art_items','gaps',
+      'gap_evidence','gap_prior_art','experiments','experiment_reviews'
     ]);
 
   IF exposed IS NOT NULL THEN
     RAISE EXCEPTION 'anon unexpectedly has table grants on: %', exposed;
   END IF;
 END
-$$;
+$regression$;
 
-DO $$
+DO $regression$
 BEGIN
   IF has_table_privilege('authenticated', 'public.experiment_reviews', 'insert') THEN
     RAISE EXCEPTION 'authenticated must not INSERT experiment_reviews';
@@ -70,8 +72,30 @@ BEGIN
      OR has_table_privilege('authenticated', 'public.ai_pre_auth_runs', 'delete') THEN
     RAISE EXCEPTION 'authenticated must not access ai_pre_auth_runs';
   END IF;
+
+  IF NOT has_table_privilege('authenticated', 'public.background_jobs', 'select')
+     OR has_table_privilege('authenticated', 'public.background_jobs', 'insert')
+     OR has_table_privilege('authenticated', 'public.background_jobs', 'update')
+     OR has_table_privilege('authenticated', 'public.background_jobs', 'delete') THEN
+    RAISE EXCEPTION 'background_jobs browser grants are not least-privilege';
+  END IF;
+
+  IF has_table_privilege('authenticated', 'public.operational_events', 'select')
+     OR has_table_privilege('authenticated', 'public.workspace_ai_budgets', 'select')
+     OR has_table_privilege('authenticated', 'public.ops_alert_state', 'select')
+     OR has_table_privilege('authenticated', 'public.rate_limit_buckets', 'select') THEN
+    RAISE EXCEPTION 'authenticated must not read operational control tables';
+  END IF;
+
+  IF has_function_privilege(
+       'authenticated',
+       'public.consume_rate_limit(text,text,integer,integer)',
+       'execute'
+     ) THEN
+    RAISE EXCEPTION 'authenticated must not execute consume_rate_limit';
+  END IF;
 END
-$$;
+$regression$;
 
 -- Synthetic identities for RLS/state-machine regression.
 INSERT INTO auth.users (
@@ -139,13 +163,79 @@ INSERT INTO public.experiments (
 );
 COMMIT;
 
+-- Durable rate limiter must enforce the configured quota.
+SELECT 1 / CASE
+  WHEN public.consume_rate_limit(
+    'CI_TEST',
+    'security-regression-key',
+    1,
+    600
+  ) THEN 1 ELSE 0
+END AS rate_limit_first_request_passed;
+
+SELECT 1 / CASE
+  WHEN NOT public.consume_rate_limit(
+    'CI_TEST',
+    'security-regression-key',
+    1,
+    600
+  ) THEN 1 ELSE 0
+END AS rate_limit_over_quota_passed;
+
+DELETE FROM public.rate_limit_buckets
+WHERE scope = 'CI_TEST' AND key_hash = 'security-regression-key';
+
+-- Durable queue must enqueue, claim, and complete a project-scoped job.
+CREATE TEMP TABLE ci_background_job (
+  job_id uuid primary key,
+  msg_id bigint
+) ON COMMIT PRESERVE ROWS;
+
+INSERT INTO ci_background_job (job_id)
+SELECT public.enqueue_background_job(
+  p.workspace_id,
+  p.id,
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'EVIDENCE_SEARCH',
+  '{"query":"synthetic evidence","type":"PROBLEM_EVIDENCE"}'::jsonb
+)
+FROM public.projects p
+WHERE p.id = '11111111-1111-4111-8111-111111111111';
+
+UPDATE ci_background_job t
+SET msg_id = c.msg_id
+FROM public.claim_background_jobs(1) c
+WHERE c.job_id = t.job_id;
+
+SELECT 1 / CASE
+  WHEN msg_id IS NOT NULL THEN 1 ELSE 0
+END AS background_queue_claim_passed
+FROM ci_background_job;
+
+SELECT 1 / CASE
+  WHEN public.complete_background_job(
+    job_id,
+    msg_id,
+    '{"ok":true}'::jsonb
+  ) THEN 1 ELSE 0
+END AS background_queue_complete_passed
+FROM ci_background_job;
+
+SELECT 1 / CASE
+  WHEN j.status = 'SUCCEEDED' THEN 1 ELSE 0
+END AS background_queue_status_passed
+FROM public.background_jobs j
+JOIN ci_background_job t ON t.job_id = j.id;
+
+DROP TABLE ci_background_job;
+
 -- User B must not see User A's tenant data.
 BEGIN;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
 
-DO $$
+DO $regression$
 DECLARE
   project_count integer;
   gap_count integer;
@@ -169,7 +259,7 @@ BEGIN
       project_count, gap_count, experiment_count;
   END IF;
 END
-$$;
+$regression$;
 ROLLBACK;
 
 -- State machine: invalid DISCOVERY -> EVIDENCE jump must fail.
@@ -178,7 +268,7 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
 
-DO $$
+DO $regression$
 DECLARE
   rejected boolean := false;
 BEGIN
@@ -194,7 +284,7 @@ BEGIN
     RAISE EXCEPTION 'state machine allowed invalid DISCOVERY -> EVIDENCE transition';
   END IF;
 END
-$$;
+$regression$;
 ROLLBACK;
 
 -- Experiment READY gate: cannot become READY without a critic review.
@@ -203,7 +293,7 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
 
-DO $$
+DO $regression$
 DECLARE
   rejected boolean := false;
 BEGIN
@@ -217,16 +307,16 @@ BEGIN
     RAISE EXCEPTION 'READY gate allowed experiment without Scientific Critic review';
   END IF;
 END
-$$;
+$regression$;
 ROLLBACK;
 
 -- Ensure browser role cannot mutate experiment status directly.
-DO $$
+DO $regression$
 BEGIN
   IF has_column_privilege('authenticated', 'public.experiments', 'status', 'update') THEN
     RAISE EXCEPTION 'authenticated must not directly UPDATE experiments.status';
   END IF;
 END
-$$;
+$regression$;
 
 SELECT 'security regression baseline passed' AS result;
