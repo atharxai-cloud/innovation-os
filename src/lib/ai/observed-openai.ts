@@ -20,6 +20,7 @@ type ObservedRequest = {
 };
 
 type ResponsesPayload = {
+  output?: unknown[];
   usage?: {
     input_tokens?: number;
     output_tokens?: number;
