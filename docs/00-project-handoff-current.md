@@ -6,6 +6,10 @@
 **Status:** MVP build in progress  
 **Architecture:** Next.js App Router + TypeScript + Supabase + modular monolith + agentic AI orchestration
 
+**Current main HEAD verified:** `03cd2cce99a469b1a5967d4aa93b524eb3e39d68`  
+**Current implementation status:** Epics 1–9 are present on `main`; Epic 10 is the next product epic.  
+**Staging security status:** Supabase Security Advisor = zero findings at verification.  
+
 ---
 
 # 1. Product Definition
@@ -331,191 +335,113 @@ CI passed completely.
 
 ---
 
-# 7. Current Work In Progress — Epic 7 Gap Finder
+# 7. Epic 7 — Gap Finder
 
-**Important: Epic 7 is NOT merged yet.**
+Completed and present on `main`.
 
-Current branch:
-`epic-7/gap-finder`
+Implementation includes:
+- `gaps`
+- `gap_evidence`
+- `gap_prior_art`
+- grounded Gap Agent
+- minimum context gate: at least one saved Evidence source + one Prior-Art item
+- server-side filtering of generated Evidence/Prior-Art IDs to the active project
+- RLS + explicit grants + project/workspace relationship checks
+- saved Gap default status `UNVALIDATED`
+- `GAP_CREATED` audit event
+- Gap Workspace UI
 
-The following has already been implemented on this branch:
+Staging validation documented in:
+`docs/13-epic-7-gap-finder.md`
 
-### Database/model
-- gaps
-- gap_evidence
-- gap_prior_art
+Verified outcomes:
+- one Gap saved as `UNVALIDATED`
+- evidence link = 1
+- prior-art link = 1
+- `GAP_CREATED` event = 1
+- cross-tenant user sees zero Gap data
+- synthetic validation data removed
 
-Gap fields:
-- title
-- description
-- gap_type
-- status
-- confidence
-- assumptions_json
-- validation_questions_json
-- created_by
-- timestamps
-
-Gap types:
-- CONTEXT
-- COST
-- PERFORMANCE
-- INTEGRATION
-- ACCESSIBILITY
-- ENVIRONMENTAL
-- OTHER
-
-Gap statuses:
-- UNVALIDATED
-- VALIDATING
-- VALIDATED
-- REJECTED
-
-Default saved Gap status:
-`UNVALIDATED`
-
-### Security
-- RLS enabled
-- explicit grants
-- workspace/project checks
-- source and prior-art relationship checks
-
-Supabase Security Advisor after Gap schema:
-- zero security findings
-
-### Gap generation rule
-Gap Finder must NOT run without minimum context.
-
-Current minimum context gate:
-
-```
->= 1 saved Evidence source
-AND
->= 1 Prior-Art item
-```
-
-If not satisfied:
-API returns `INSUFFICIENT_CONTEXT`.
-
-### Gap Agent
-Already added on branch.
-
-Uses:
-- project
-- problem
-- assumptions
-- claims
-- saved evidence sources
-- saved prior-art items
-
-Output:
-- title
-- description
-- gap_type
-- known_limitation
-- opportunity_rationale
-- assumptions
-- validation_questions
-- confidence
-- evidence_source_ids
-- prior_art_ids
-
-Safety:
-- Gap is a hypothesis, never a novelty verdict.
-- Generated source/prior-art IDs are filtered against IDs actually belonging to the current project before returning or saving.
-
-### APIs already added on branch
-- `POST /api/v1/projects/:id/gaps/generate`
-- `POST /api/v1/projects/:id/gaps`
-
-### UI already added on branch
-Gap Workspace now has:
-- Find Potential Gaps
-- insufficient-context message
-- generated candidate cards
-- assumptions
-- validation questions
-- evidence/prior-art grounding counts
-- save Gap Hypothesis
-- saved gaps section
+Legacy branch `epic-7/gap-finder` is behind current `main` and must not be re-merged.
 
 ---
 
-# 8. IMPORTANT — Epic 7 Staging Test Is Partially In Progress
+# 8. Epic 8/9 — Experiment Designer + Scientific Critic
 
-Before this handoff, an Epic 7 synthetic test was started on staging.
+Completed and present on `main`.
 
-Synthetic users created:
+Repository migrations:
+- `017_experiment_designer_critic.sql`
+- `018_experiment_revision_audit.sql`
 
-User A:
-`cccccccc-cccc-4ccc-8ccc-cccccccccccc`
+Implemented:
+- `experiments`
+- `experiment_reviews`
+- Experiment Designer agent
+- separate Scientific Critic agent
+- revision loop
+- audit events
+- explicit READY database gate
 
-User B:
-`dddddddd-dddd-4ddd-8ddd-dddddddddddd`
+Status flow:
 
-Synthetic project:
-`db14e803-0a81-401e-834b-36202bd4b3e4`
+```
+DRAFT
+→ Scientific Critic
+→ NEEDS_REVISION | AI_REVIEWED
+→ READY
+```
 
-Synthetic Evidence source:
-`30b42399-7bbd-4869-b79e-ddce1f4e72f5`
+Safety and architecture:
+- Generator does not grade itself.
+- Browser cannot directly write experiment status.
+- `experiment_reviews` are read-only to authenticated browser roles.
+- READY requires a Scientific Critic review and zero blocking issues.
+- AI cannot bypass project authorization or the Project State Machine.
 
-The project and evidence source currently exist in staging unless cleaned after this handoff.
+Staging validation documented in:
+`docs/14-epic-8-9-experiment-critic.md`
 
-The next chat MUST either:
-1. continue the Epic 7 integration test using these IDs, then clean all synthetic data, or
-2. clean them first and restart the test.
-
-Do not forget this.
-
-Expected remaining Epic 7 test sequence:
-
-1. Add one prior-art item to project `db14e803-0a81-401e-834b-36202bd4b3e4`.
-2. Save one Gap Hypothesis using:
-   - evidence source `30b42399-7bbd-4869-b79e-ddce1f4e72f5`
-   - the prior-art item ID
-3. Verify:
-   - gap count = 1
-   - gap_evidence count = 1
-   - gap_prior_art count = 1
-   - GAP_CREATED audit event = 1
-   - status = UNVALIDATED
-4. Switch auth context to User B.
-5. Verify User B sees:
-   - 0 gaps
-   - 0 gap_evidence
-   - 0 gap_prior_art
-6. Clean project, workspaces, memberships, and both synthetic users.
-7. Run Supabase Security Advisor.
-8. Add Epic 7 validation doc.
-9. Open PR.
-10. Run CI.
-11. Merge only if full CI passes.
+Verified outcomes include:
+- READY without review blocked
+- blocking review forces `NEEDS_REVISION`
+- READY with blockers blocked
+- revision audit event created
+- clean review produces `AI_REVIEWED`
+- explicit READY action succeeds only after zero-blocker review
+- cross-tenant visibility = zero
+- synthetic validation data removed
 
 ---
 
 # 9. Supabase Schema / Migration State
 
-Merged repository migrations currently include through Epic 6.
+Repository migration files currently include through:
 
-Files created historically include:
-- 004_project_core_state_machine.sql
-- 005_harden_project_creation.sql
-- 006_enforce_project_state_machine.sql
-- 007_ai_run_artifact_foundation.sql
-- 008_idea_xray_project_conversion.sql
-- 009_remove_unused_ai_record_function.sql
-- 010_project_brain_snapshot_engine.sql
-- 011_evidence_engine_core.sql
-- 012_evidence_save_and_claim_workflow.sql
-- 013_index_project_source_saved_by.sql
-- 014_evidence_upsert_permissions.sql
-- 015_prior_art_discovery.sql
+- `015_prior_art_discovery.sql`
+- `016_gap_finder.sql`
+- `017_experiment_designer_critic.sql`
+- `018_experiment_revision_audit.sql`
 
-Epic 7 branch includes:
-- 016_gap_finder.sql
+Important staging drift discovered during verification:
 
-Note:
-During development, some staging schema changes were applied with direct SQL for verification before being committed as migration files. Always compare staging schema and repository migration history before production promotion.
+- Staging schema contains Prior Art, Gap Finder, Experiments, and Experiment Reviews objects.
+- Supabase migration-history records currently list only through migration 014.
+- This happened because later staging schema work was applied directly for validation before repository migrations were committed.
+
+Therefore:
+
+> Do not promote staging schema to production until migration history is reconciled deliberately.
+
+Do not blindly re-run 015–018 against staging because existing tables/triggers/functions may collide. Reconcile with a controlled migration-history repair / fresh-environment replay before production promotion.
+
+Current Staging RLS check:
+- `gaps`: RLS enabled
+- `gap_evidence`: RLS enabled
+- `gap_prior_art`: RLS enabled
+- `experiments`: RLS enabled
+- `experiment_reviews`: RLS enabled
+- anonymous SELECT on all above: false
 
 ---
 
@@ -572,68 +498,9 @@ Before public onboarding:
 
 ---
 
-# 12. Next Epics After Gap Finder
+# 12. Next Epics
 
-## Epic 8 — Experiment Designer
-
-Required data model:
-- experiments
-- experiment_reviews
-
-Experiment fields:
-- title
-- research_question
-- hypothesis
-- independent_variable
-- dependent_variable
-- control_description
-- sample_description
-- measurement_method
-- protocol_json
-- success_criteria
-- status
-
-Statuses:
-- DRAFT
-- AI_REVIEWED
-- NEEDS_REVISION
-- READY
-- ARCHIVED
-
-Flow:
-
-```
-Validated/selected Gap
-→ Research Question
-→ Hypothesis
-→ Variables
-→ Control
-→ Measurement
-→ Sample
-→ Protocol
-→ Success Criteria
-→ Failure Modes
-→ Safety/Ethics
-```
-
-## Epic 9 — Scientific Critic
-
-Must be a separate agent from Experiment Designer.
-
-Principle:
-
-> Generator must not grade itself.
-
-Critic checks:
-- Does experiment test the hypothesis?
-- Is there a control?
-- Is the measurement valid?
-- Are there confounders?
-- Is success criterion explicit?
-- Is sample reasoning acceptable for the stage?
-- Are there safety/ethical issues?
-
-Experiment cannot become READY while blocking issues remain.
+Epic 7, Epic 8, and Epic 9 are complete on `main`.
 
 ## Epic 10 — Ask My Project
 
@@ -691,11 +558,9 @@ Ask My Project answers from Project Data
 ### G
 User A cannot access User B data
 
-A, B, C and repeated G checks have already been validated during development.
+A, B, C, D, E and repeated G checks have been validated during development.
 
-D is currently in progress in Epic 7.
-
-E and F remain.
+F remains and belongs to Epic 10 — Ask My Project.
 
 ---
 
@@ -742,13 +607,13 @@ Prior-Art Discovery
 ✓
 
 Gap Finder
-IN PROGRESS
+✓
 
 Experiment Designer
-NOT STARTED
+✓
 
 Scientific Critic
-NOT STARTED
+✓
 
 Ask My Project
 NOT STARTED
@@ -759,6 +624,6 @@ NOT STARTED
 
 The immediate action in the next chat is:
 
-> Continue Epic 7 from branch `epic-7/gap-finder`, finish the partially-started staging validation, clean synthetic data, pass CI, merge the PR, then proceed to Epic 8 Experiment Designer.
+> Do not return to the legacy Epic 7 branch. Verify the current main through the canonical CI gate, reconcile staging migration-history drift before production promotion, then proceed to Epic 10 — Ask My Project.
 
 Do not restart the project or recreate completed work.
