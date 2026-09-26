@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { observedOpenAIResponse } from "@/lib/ai/observed-openai";
 
 type BrainEnrichment = {
   biggest_unknown: string;
@@ -51,6 +52,8 @@ export async function enrichProjectBrain(projectId: string) {
   if (!apiKey || !admin) return;
 
   const supabase = await createClient();
+  const { data: authData } = await supabase.auth.getClaims();
+  const actorId = typeof authData?.claims?.sub === "string" ? authData.claims.sub : null;
 
   const [project, problem, questions, assumptions, snapshot] = await Promise.all([
     supabase
@@ -92,16 +95,18 @@ export async function enrichProjectBrain(projectId: string) {
   const timer = setTimeout(() => controller.abort(), 10_000);
 
   try {
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
+    const { payload, runId } = await observedOpenAIResponse({
+      context: {
+        workspaceId: project.data.workspace_id,
+        projectId,
+        actorId,
+        agentType: "PROJECT_BRAIN",
+        inputHash: `snapshot:${snapshot.data.snapshot_version}`,
+        metadata: { snapshot_version: snapshot.data.snapshot_version },
       },
-      signal: controller.signal,
-      cache: "no-store",
-      body: JSON.stringify({
-        model,
+      model,
+      timeoutMs: 10_000,
+      body: {
         instructions: [
           "You are the Project Brain enrichment layer inside Innovation OS.",
           "Do not change the project stage.",
@@ -127,12 +132,9 @@ export async function enrichProjectBrain(projectId: string) {
             schema,
           },
         },
-      }),
+      },
     });
 
-    if (!response.ok) return;
-
-    const payload = await response.json();
     const text = extractOutputText(payload);
     if (!text) return;
 
@@ -171,29 +173,15 @@ export async function enrichProjectBrain(projectId: string) {
       })
       .eq("id", snapshot.data.id);
 
-    const { data: run } = await admin
-      .from("ai_runs")
-      .insert({
-        workspace_id: project.data.workspace_id,
-        project_id: projectId,
-        agent_type: "PROJECT_BRAIN",
-        status: "SUCCEEDED",
-        input_hash: `snapshot:${snapshot.data.snapshot_version}`,
-        model_provider: "openai",
-        model_name: model,
-        completed_at: new Date().toISOString(),
-      })
-      .select("id")
-      .maybeSingle();
-
-    if (run?.id) {
+    if (runId) {
       await admin.from("ai_artifacts").insert({
-        ai_run_id: run.id,
+        ai_run_id: runId,
         artifact_type: "PROJECT_BRAIN_ENRICHMENT",
         content_json: parsed,
         version: 1,
       });
     }
+
   } catch {
     // Deterministic snapshot remains valid if enrichment fails.
   } finally {
