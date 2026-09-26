@@ -37,11 +37,14 @@ export function estimateOpenAiCostUsd(model: string, usage: AiUsage) {
 
   const cached = Math.max(0, Math.min(usage.cachedInputTokens ?? 0, usage.inputTokens));
   const uncached = Math.max(0, usage.inputTokens - cached);
+  const longContext = usage.inputTokens > 272_000;
+  const inputMultiplier = longContext ? 2 : 1;
+  const outputMultiplier = longContext ? 1.5 : 1;
 
   const cost =
-    (uncached * price.inputPerMillion +
-      cached * price.cachedInputPerMillion +
-      usage.outputTokens * price.outputPerMillion) /
+    (uncached * price.inputPerMillion * inputMultiplier +
+      cached * price.cachedInputPerMillion * inputMultiplier +
+      usage.outputTokens * price.outputPerMillion * outputMultiplier) /
     1_000_000;
 
   return Number(cost.toFixed(8));
