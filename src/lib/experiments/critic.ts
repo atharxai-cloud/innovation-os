@@ -41,9 +41,9 @@ function outputText(payload: unknown) {
   return null;
 }
 
-export async function critiqueExperiment(context: Record<string, unknown>, observation: AiObservationContext): Promise<ScientificCriticReview> {
+export async function critiqueExperiment(context: Record<string, unknown>, observation: AiObservationContext): Promise<{ review: ScientificCriticReview; runId: string | null }> {
   const model = process.env.OPENAI_SCIENTIFIC_CRITIC_MODEL ?? "gpt-5.6-sol";
-  const { payload } = await observedOpenAIResponse({
+  const { payload, runId } = await observedOpenAIResponse({
     context: observation,
     model,
     body: {
@@ -70,5 +70,5 @@ export async function critiqueExperiment(context: Record<string, unknown>, obser
   });
   const text = outputText(payload);
   if (!text) throw new Error("Critic output missing");
-  return JSON.parse(text) as ScientificCriticReview;
+  return { review: JSON.parse(text) as ScientificCriticReview, runId };
 }
