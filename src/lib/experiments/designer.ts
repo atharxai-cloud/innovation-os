@@ -41,9 +41,9 @@ function outputText(payload: unknown) {
   return null;
 }
 
-export async function designExperiment(context: Record<string, unknown>, observation: AiObservationContext): Promise<ExperimentDraft> {
+export async function designExperiment(context: Record<string, unknown>, observation: AiObservationContext): Promise<{ draft: ExperimentDraft; runId: string | null }> {
   const model = process.env.OPENAI_EXPERIMENT_DESIGNER_MODEL ?? "gpt-5.6-terra";
-  const { payload } = await observedOpenAIResponse({
+  const { payload, runId } = await observedOpenAIResponse({
     context: observation,
     model,
     body: {
@@ -71,5 +71,5 @@ export async function designExperiment(context: Record<string, unknown>, observa
   });
   const text = outputText(payload);
   if (!text) throw new Error("Experiment output missing");
-  return JSON.parse(text) as ExperimentDraft;
+  return { draft: JSON.parse(text) as ExperimentDraft, runId };
 }
