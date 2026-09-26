@@ -45,3 +45,36 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+  fresh-db-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start fresh local database
+        run: supabase db start
+
+      - name: Replay all migrations from zero
+        run: supabase db reset --local
+
+      - name: Verify local migration history
+        run: supabase migration list --local
+
+      - name: Run security regression baseline
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres"             --set=ON_ERROR_STOP=1             --file=supabase/tests/security_regression.sql
+
+      - name: Stop local database
+        if: always()
+        run: supabase stop --no-backup
+
