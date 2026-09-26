@@ -1,19 +1,18 @@
 import { NextResponse } from "next/server";
 import { runIdeaXRay } from "@/lib/ai/openai-gateway";
-import { consumeIdeaXRayQuota } from "@/lib/ai/rate-limit";
+import { consumeRateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  const forwarded = request.headers.get("x-forwarded-for");
-  const clientKey = forwarded?.split(",")[0]?.trim() || "unknown";
-
-  if (!consumeIdeaXRayQuota(clientKey)) {
-    return NextResponse.json(
-      { error: "rate_limited" },
-      { status: 429 },
-    );
-  }
+  const rate = await consumeRateLimit({
+    request,
+    scope: "idea-xray",
+    limit: 5,
+    windowSeconds: 600,
+  });
+  const limited = rateLimitResponse(rate);
+  if (limited) return limited;
 
   let body: unknown;
 
