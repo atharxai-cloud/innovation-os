@@ -13,9 +13,10 @@ BEGIN
     AND c.relname = ANY (ARRAY[
       'profiles','workspaces','workspace_members','projects','project_members',
       'project_problems','project_assumptions','project_questions','project_snapshots',
-      'audit_events','ai_runs','ai_artifacts','ai_pre_auth_runs','sources','project_sources','claims',
-      'claim_sources','prior_art_items','gaps','gap_evidence','gap_prior_art',
-      'experiments','experiment_reviews'
+      'audit_events','ai_runs','ai_artifacts','ai_pre_auth_runs','rate_limit_buckets',
+      'background_jobs','operational_events','workspace_ai_budgets','ops_alert_state',
+      'sources','project_sources','claims','claim_sources','prior_art_items','gaps',
+      'gap_evidence','gap_prior_art','experiments','experiment_reviews'
     ])
     AND NOT c.relrowsecurity;
 
@@ -37,9 +38,10 @@ BEGIN
     AND table_name = ANY (ARRAY[
       'profiles','workspaces','workspace_members','projects','project_members',
       'project_problems','project_assumptions','project_questions','project_snapshots',
-      'audit_events','ai_runs','ai_artifacts','ai_pre_auth_runs','sources','project_sources','claims',
-      'claim_sources','prior_art_items','gaps','gap_evidence','gap_prior_art',
-      'experiments','experiment_reviews'
+      'audit_events','ai_runs','ai_artifacts','ai_pre_auth_runs','rate_limit_buckets',
+      'background_jobs','operational_events','workspace_ai_budgets','ops_alert_state',
+      'sources','project_sources','claims','claim_sources','prior_art_items','gaps',
+      'gap_evidence','gap_prior_art','experiments','experiment_reviews'
     ]);
 
   IF exposed IS NOT NULL THEN
@@ -70,8 +72,30 @@ BEGIN
      OR has_table_privilege('authenticated', 'public.ai_pre_auth_runs', 'delete') THEN
     RAISE EXCEPTION 'authenticated must not access ai_pre_auth_runs';
   END IF;
+
+  IF NOT has_table_privilege('authenticated', 'public.background_jobs', 'select')
+     OR has_table_privilege('authenticated', 'public.background_jobs', 'insert')
+     OR has_table_privilege('authenticated', 'public.background_jobs', 'update')
+     OR has_table_privilege('authenticated', 'public.background_jobs', 'delete') THEN
+    RAISE EXCEPTION 'background_jobs browser grants are not least-privilege';
+  END IF;
+
+  IF has_table_privilege('authenticated', 'public.operational_events', 'select')
+     OR has_table_privilege('authenticated', 'public.workspace_ai_budgets', 'select')
+     OR has_table_privilege('authenticated', 'public.ops_alert_state', 'select')
+     OR has_table_privilege('authenticated', 'public.rate_limit_buckets', 'select') THEN
+    RAISE EXCEPTION 'authenticated must not read operational control tables';
+  END IF;
+
+  IF has_function_privilege(
+       'authenticated',
+       'public.consume_rate_limit(text,text,integer,integer)',
+       'execute'
+     ) THEN
+    RAISE EXCEPTION 'authenticated must not execute consume_rate_limit';
+  END IF;
 END
-$$;
+$;
 
 -- Synthetic identities for RLS/state-machine regression.
 INSERT INTO auth.users (
@@ -138,6 +162,80 @@ INSERT INTO public.experiments (
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 );
 COMMIT;
+
+-- Durable rate limiter must enforce the configured quota.
+DO $
+DECLARE
+  first_allowed boolean;
+  second_allowed boolean;
+BEGIN
+  first_allowed := public.consume_rate_limit(
+    'CI_TEST',
+    'security-regression-key',
+    1,
+    600
+  );
+  second_allowed := public.consume_rate_limit(
+    'CI_TEST',
+    'security-regression-key',
+    1,
+    600
+  );
+
+  IF first_allowed IS DISTINCT FROM true OR second_allowed IS DISTINCT FROM false THEN
+    RAISE EXCEPTION 'durable rate limiter did not enforce quota';
+  END IF;
+
+  DELETE FROM public.rate_limit_buckets
+  WHERE scope = 'CI_TEST' AND key_hash = 'security-regression-key';
+END
+$;
+
+-- Durable queue must enqueue, claim, and complete a project-scoped job.
+DO $
+DECLARE
+  v_workspace_id uuid;
+  v_job_id uuid;
+  v_msg_id bigint;
+  v_status text;
+BEGIN
+  SELECT workspace_id INTO v_workspace_id
+  FROM public.projects
+  WHERE id = '11111111-1111-4111-8111-111111111111';
+
+  v_job_id := public.enqueue_background_job(
+    v_workspace_id,
+    '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'EVIDENCE_SEARCH',
+    '{"query":"synthetic evidence","type":"PROBLEM_EVIDENCE"}'::jsonb
+  );
+
+  SELECT msg_id INTO v_msg_id
+  FROM public.claim_background_jobs(1)
+  WHERE job_id = v_job_id;
+
+  IF v_msg_id IS NULL THEN
+    RAISE EXCEPTION 'background job could not be claimed';
+  END IF;
+
+  PERFORM public.complete_background_job(
+    v_job_id,
+    v_msg_id,
+    '{"ok":true}'::jsonb
+  );
+
+  SELECT status INTO v_status
+  FROM public.background_jobs
+  WHERE id = v_job_id;
+
+  IF v_status <> 'SUCCEEDED' THEN
+    RAISE EXCEPTION 'background job did not complete successfully';
+  END IF;
+
+  DELETE FROM public.background_jobs WHERE id = v_job_id;
+END
+$;
 
 -- User B must not see User A's tenant data.
 BEGIN;
