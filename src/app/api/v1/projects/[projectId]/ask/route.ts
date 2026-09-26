@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildProjectContextPack } from "@/lib/project-brain/context-pack";
 import { askProjectAgent } from "@/lib/project-brain/ask-agent";
+import { consumeRateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
 
 export async function POST(
   request: Request,
@@ -16,6 +17,15 @@ export async function POST(
   if (!claims?.claims?.sub) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+
+  const rate = await consumeRateLimit({
+    request,
+    scope: "ask-project",
+    limit: 20,
+    windowSeconds: 600,
+  });
+  const limited = rateLimitResponse(rate);
+  if (limited) return limited;
 
   const body = await request.json().catch(() => null) as { question?: unknown } | null;
   const question = typeof body?.question === "string" ? body.question.trim() : "";
