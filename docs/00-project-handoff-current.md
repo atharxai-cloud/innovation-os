@@ -420,12 +420,15 @@ Migration history reconciliation completed on Staging.
 
 Repository migration files are now normalized to Supabase-compatible 14-digit versions and match the Staging migration history.
 
-Current baseline includes migrations 001–019.
+Current baseline includes migrations 001–022.
 - `20260926070751_015_prior_art_discovery.sql`
 - `20260926071331_016_gap_finder.sql`
 - `20260926072335_017_experiment_designer_critic.sql`
 - `20260926072336_018_experiment_revision_audit.sql`
 - `20260926075637_019_enforce_project_stage_machine_trigger.sql`
+- `20260926080425_020_ai_observability_cost_accounting.sql`
+- `20260926081229_021_pre_auth_ai_observability.sql`
+- `20260926081540_022_pre_auth_deny_all_policy.sql`
 
 The previously missing Staging history entries for 015–018 were marked as applied only after verifying that the corresponding schema objects, functions, triggers, grants, RLS policies, and constraints already existed. Their DDL was not re-run.
 
@@ -539,9 +542,9 @@ Questions include:
 Includes:
 - durable rate limiting
 - jobs/queue
-- observability
-- structured logs
-- AI cost accounting
+- observability ✓
+- structured logs ✓
+- AI cost accounting ✓
 - security regression tests
 - final release scenarios A–G
 - staging-to-production promotion
@@ -632,11 +635,11 @@ Ask My Project
 ✓
 
 Release Hardening
-IN PROGRESS
+IN PROGRESS — observability / structured logs / AI cost accounting implemented
 ```
 
 The immediate action in the next chat is:
 
-> Migration history is reconciled and fresh-environment replay/security regression are automated and passing through migration 019. Continue Epic 11 with observability, background jobs, AI cost accounting, expanded security regression, and final A–G release validation before Production promotion.
+> Migration history is reconciled and fresh-environment replay/security regression are automated. AI observability, structured logging, and cost accounting are implemented through migrations 020–022. Continue Epic 11 with durable distributed rate limiting, background jobs/queue, external error tracking, telemetry retention, and final A–G release validation before Production promotion.
 
 Do not restart the project or recreate completed work.
